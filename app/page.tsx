@@ -1,28 +1,5 @@
 import StockTable from "@/components/StockTable";
-
-const watchlist = [
-  {
-    ticker: "RELY",
-    company: "Remitly",
-    priority: "High",
-    thesis: "Cross-border payments compounder with margin expansion potential.",
-    latestUpdate: "Revenue growth remains strong; watch customer acquisition costs.",
-  },
-  {
-    ticker: "FOUR",
-    company: "Shift4",
-    priority: "Medium",
-    thesis: "Payments platform expanding beyond restaurants into larger verticals.",
-    latestUpdate: "Monitor Global Blue integration and enterprise growth.",
-  },
-  {
-    ticker: "TOST",
-    company: "Toast",
-    priority: "Medium",
-    thesis: "Restaurant software/payments ecosystem with strong retention.",
-    latestUpdate: "Need to compare growth quality versus valuation.",
-  },
-];
+import { supabase } from "@/lib/supabase";
 
 async function fetchQuote(ticker: string): Promise<{ price: number; changePct: number }> {
   const key = process.env.FINNHUB_API_KEY;
@@ -40,6 +17,19 @@ async function fetchQuote(ticker: string): Promise<{ price: number; changePct: n
 }
 
 export default async function Home() {
+  const { data: watchlist, error } = await supabase
+    .from("stocks")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error || !watchlist) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <p className="text-slate-400">Failed to load watchlist. Check Supabase connection.</p>
+      </main>
+    );
+  }
+
   const stocks = await Promise.all(
     watchlist.map(async (stock) => {
       const { price, changePct } = await fetchQuote(stock.ticker);
@@ -84,7 +74,7 @@ export default async function Home() {
 
         <div className="mt-6 rounded-xl bg-slate-900 p-4">
           <h2 className="text-xl font-semibold">Selected Thesis</h2>
-          <p className="mt-2 text-slate-300">{stocks[0].thesis}</p>
+          <p className="mt-2 text-slate-300">{stocks[0]?.thesis ?? "No stocks in watchlist."}</p>
         </div>
       </div>
     </main>

@@ -4,7 +4,7 @@ type Stock = {
   price: number;
   changePct: number;
   priority: string;
-  latestUpdate: string;
+  latest_update: string;
 };
 
 type StockTableProps = {
@@ -42,7 +42,7 @@ export default function StockTable({ stocks }: StockTableProps) {
                 </span>
               </td>
               <td className="p-4">{stock.priority}</td>
-              <td className="p-4 text-slate-300">{stock.latestUpdate}</td>
+              <td className="p-4 text-slate-300">{stock.latest_update}</td>
             </tr>
           ))}
         </tbody>
