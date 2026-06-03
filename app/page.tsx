@@ -1,11 +1,9 @@
 import StockTable from "@/components/StockTable";
 
-const stocks = [
+const watchlist = [
   {
-    ticker: "RMLY",
+    ticker: "RELY",
     company: "Remitly",
-    price: 18.42,
-    changePct: 2.1,
     priority: "High",
     thesis: "Cross-border payments compounder with margin expansion potential.",
     latestUpdate: "Revenue growth remains strong; watch customer acquisition costs.",
@@ -13,24 +11,48 @@ const stocks = [
   {
     ticker: "FOUR",
     company: "Shift4",
-    price: 72.15,
-    changePct: -1.4,
-    priority: "Medium", 
+    priority: "Medium",
     thesis: "Payments platform expanding beyond restaurants into larger verticals.",
     latestUpdate: "Monitor Global Blue integration and enterprise growth.",
   },
   {
     ticker: "TOST",
     company: "Toast",
-    price: 24.8,
-    changePct: 0.7,
     priority: "Medium",
     thesis: "Restaurant software/payments ecosystem with strong retention.",
     latestUpdate: "Need to compare growth quality versus valuation.",
   },
 ];
 
-export default function Home() {
+async function fetchQuote(ticker: string): Promise<{ price: number; changePct: number }> {
+  const key = process.env.FINNHUB_API_KEY;
+  if (!key) return { price: 0, changePct: 0 };
+  try {
+    const res = await fetch(
+      `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${key}`,
+      { next: { revalidate: 300 } }
+    );
+    const data = await res.json();
+    return { price: data.c ?? 0, changePct: data.dp ?? 0 };
+  } catch {
+    return { price: 0, changePct: 0 };
+  }
+}
+
+export default async function Home() {
+  const stocks = await Promise.all(
+    watchlist.map(async (stock) => {
+      const { price, changePct } = await fetchQuote(stock.ticker);
+      return { ...stock, price, changePct };
+    })
+  );
+
+  const validPrices = stocks.filter((s) => s.price > 0);
+  const avgMove =
+    validPrices.length > 0
+      ? (validPrices.reduce((sum, s) => sum + s.changePct, 0) / validPrices.length).toFixed(1)
+      : "—";
+
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-7xl p-6">
@@ -48,19 +70,13 @@ export default function Home() {
           <div className="rounded-xl bg-slate-900 p-4">
             <p className="text-sm text-slate-400">High Priority</p>
             <p className="mt-2 text-2xl font-semibold">
-              {stocks.filter((stock) => stock.priority === "High").length}
+              {stocks.filter((s) => s.priority === "High").length}
             </p>
           </div>
 
           <div className="rounded-xl bg-slate-900 p-4">
             <p className="text-sm text-slate-400">Avg 1D Move</p>
-            <p className="mt-2 text-2xl font-semibold">
-              {(
-                stocks.reduce((sum, stock) => sum + stock.changePct, 0) /
-                stocks.length
-              ).toFixed(1)}
-              %
-            </p>
+            <p className="mt-2 text-2xl font-semibold">{avgMove}%</p>
           </div>
         </div>
 
