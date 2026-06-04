@@ -1,4 +1,7 @@
+import DeleteButton from "./DeleteButton";
+
 type Stock = {
+  id: string;
   ticker: string;
   company: string;
   price: number;
@@ -23,6 +26,7 @@ export default function StockTable({ stocks }: StockTableProps) {
             <th className="p-4">1D %</th>
             <th className="p-4">Priority</th>
             <th className="p-4">Latest Update</th>
+            <th className="p-4"></th>
           </tr>
         </thead>
 
@@ -31,18 +35,17 @@ export default function StockTable({ stocks }: StockTableProps) {
             <tr key={stock.ticker} className="border-t border-slate-800">
               <td className="p-4 font-semibold">{stock.ticker}</td>
               <td className="p-4">{stock.company}</td>
-              <td className="p-4">${stock.price}</td>
+              <td className="p-4">${stock.price.toFixed(2)}</td>
               <td className="p-4">
-                <span
-                  className={
-                    stock.changePct >= 0 ? "text-emerald-400" : "text-red-400"
-                  }
-                >
-                  {stock.changePct}%
+                <span className={stock.changePct >= 0 ? "text-emerald-400" : "text-red-400"}>
+                  {stock.changePct.toFixed(2)}%
                 </span>
               </td>
               <td className="p-4">{stock.priority}</td>
               <td className="p-4 text-slate-300">{stock.latest_update}</td>
+              <td className="p-4">
+                <DeleteButton id={stock.id} />
+              </td>
             </tr>
           ))}
         </tbody>

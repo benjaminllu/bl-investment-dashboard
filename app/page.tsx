@@ -1,4 +1,5 @@
 import StockTable from "@/components/StockTable";
+import AddStockForm from "@/components/AddStockForm";
 import { supabase } from "@/lib/supabase";
 
 async function fetchQuote(ticker: string): Promise<{ price: number; changePct: number }> {
@@ -76,6 +77,8 @@ export default async function Home() {
           <h2 className="text-xl font-semibold">Selected Thesis</h2>
           <p className="mt-2 text-slate-300">{stocks[0]?.thesis ?? "No stocks in watchlist."}</p>
         </div>
+
+        <AddStockForm />
       </div>
     </main>
   );
