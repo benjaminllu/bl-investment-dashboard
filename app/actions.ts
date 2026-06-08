@@ -7,13 +7,16 @@ export async function addStock(formData: FormData) {
   const ticker = (formData.get("ticker") as string).toUpperCase().trim();
   const company = (formData.get("company") as string).trim();
   const priority = formData.get("priority") as string;
-  const thesis = (formData.get("thesis") as string).trim();
-  const latest_update = (formData.get("latest_update") as string).trim();
+  const thesis = ((formData.get("thesis") as string) ?? "").trim();
+  const latest_update = ((formData.get("latest_update") as string) ?? "").trim();
 
-  if (!ticker || !company) return;
+  if (!ticker || !company) return { error: "Ticker and company are required." };
 
-  await supabaseAdmin.from("stocks").insert({ ticker, company, priority, thesis, latest_update });
+  const { error } = await supabaseAdmin.from("stocks").insert({ ticker, company, priority, thesis, latest_update });
+  if (error) return { error: error.message };
+
   revalidatePath("/");
+  return { error: null };
 }
 
 export async function deleteStock(id: string) {

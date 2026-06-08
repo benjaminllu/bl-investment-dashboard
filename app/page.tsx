@@ -1,6 +1,13 @@
+import { Suspense } from "react";
 import StockTable from "@/components/StockTable";
 import AddStockForm from "@/components/AddStockForm";
+import MarketBanner from "@/components/MarketBanner";
 import { supabase } from "@/lib/supabase";
+import XFeed from "@/components/XFeed";
+
+// then in the JSX:
+<XFeed />
+
 
 async function fetchQuote(ticker: string): Promise<{ price: number; changePct: number }> {
   const key = process.env.FINNHUB_API_KEY;
@@ -32,53 +39,29 @@ export default async function Home() {
   }
 
   const stocks = await Promise.all(
-    watchlist.map(async (stock) => {
+    watchlist.map(async (stock) => { 
       const { price, changePct } = await fetchQuote(stock.ticker);
       return { ...stock, price, changePct };
     })
   );
 
   const validPrices = stocks.filter((s) => s.price > 0);
-  const avgMove =
-    validPrices.length > 0
-      ? (validPrices.reduce((sum, s) => sum + s.changePct, 0) / validPrices.length).toFixed(1)
-      : "—";
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-7xl p-6">
-        <h1 className="text-3xl font-bold">Investment Dashboard</h1>
-        <p className="mt-2 text-slate-400">
-          Track watchlist changes, thesis notes, and priority signals.
-        </p>
+      <div className="mx-auto max-w-screen-2xl p-6">
 
-        <div className="mt-6 grid grid-cols-3 gap-4">
-          <div className="rounded-xl bg-slate-900 p-4">
-            <p className="text-sm text-slate-400">Watchlist</p>
-            <p className="mt-2 text-2xl font-semibold">{stocks.length}</p>
-          </div>
-
-          <div className="rounded-xl bg-slate-900 p-4">
-            <p className="text-sm text-slate-400">High Priority</p>
-            <p className="mt-2 text-2xl font-semibold">
-              {stocks.filter((s) => s.priority === "High").length}
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-slate-900 p-4">
-            <p className="text-sm text-slate-400">Avg 1D Move</p>
-            <p className="mt-2 text-2xl font-semibold">{avgMove}%</p>
-          </div>
+        <div className="mt-0 mb-2 rounded-xl bg-slate-900 p-4">
+          <Suspense fallback={<p className="text-sm text-slate-500">Loading market data...</p>}>
+            <MarketBanner />
+          </Suspense>
         </div>
 
         <StockTable stocks={stocks} />
 
-        <div className="mt-6 rounded-xl bg-slate-900 p-4">
-          <h2 className="text-xl font-semibold">Selected Thesis</h2>
-          <p className="mt-2 text-slate-300">{stocks[0]?.thesis ?? "No stocks in watchlist."}</p>
-        </div>
-
         <AddStockForm />
+        
+        <XFeed />
       </div>
     </main>
   );

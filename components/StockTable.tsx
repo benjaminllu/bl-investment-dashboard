@@ -16,7 +16,7 @@ type StockTableProps = {
 
 export default function StockTable({ stocks }: StockTableProps) {
   return (
-    <div className="mt-6 overflow-hidden rounded-xl bg-slate-900">
+    <div className="mt-3 overflow-hidden rounded-xl bg-slate-900">
       <table className="w-full text-left text-sm">
         <thead className="bg-slate-800 text-slate-300">
           <tr>

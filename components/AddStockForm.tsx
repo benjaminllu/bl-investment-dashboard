@@ -1,20 +1,29 @@
 "use client";
 
 import { addStock } from "@/app/actions";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 export default function AddStockForm() {
   const formRef = useRef<HTMLFormElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(formData: FormData) {
-    await addStock(formData);
-    formRef.current?.reset();
+    setLoading(true);
+    setError(null);
+    const result = await addStock(formData);
+    setLoading(false);
+    if (result?.error) {
+      setError(result.error);
+    } else {
+      formRef.current?.reset();
+    }
   }
 
   return (
-    <div className="mt-6 rounded-xl bg-slate-900 p-4">
+    <div className="mt-3 rounded-xl bg-slate-900 p-4">
       <h2 className="text-xl font-semibold mb-4">Add Stock</h2>
-      <form ref={formRef} action={handleSubmit} className="grid grid-cols-2 gap-3">
+      <form ref={formRef} action={handleSubmit} noValidate className="grid grid-cols-2 gap-3">
         <input
           name="ticker"
           placeholder="Ticker (e.g. AAPL)"
@@ -49,10 +58,12 @@ export default function AddStockForm() {
         />
         <button
           type="submit"
-          className="col-span-2 rounded-lg bg-slate-700 py-2 text-sm font-semibold hover:bg-slate-600 transition-colors"
+          disabled={loading}
+          className="col-span-2 rounded-lg bg-slate-700 py-2 text-sm font-semibold hover:bg-slate-600 transition-colors disabled:opacity-50"
         >
-          Add to Watchlist
+          {loading ? "Adding..." : "Add to Watchlist"}
         </button>
+        {error && <p className="col-span-2 text-sm text-red-400">{error}</p>}
       </form>
     </div>
   );
