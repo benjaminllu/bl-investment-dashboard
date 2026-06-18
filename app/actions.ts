@@ -18,8 +18,3 @@ export async function addStock(formData: FormData) {
   revalidatePath("/");
   return { error: null };
 }
-
-export async function deleteStock(id: string) {
-  await supabaseAdmin.from("stocks").delete().eq("id", id);
-  revalidatePath("/");
-}

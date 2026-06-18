@@ -12,7 +12,11 @@ export default function MarketClock() {
     return () => clearInterval(id);
   }, []);
 
-  if (!now) return null;
+  if (!now) return (
+    <span className="invisible text-sm text-slate-400">
+      Wednesday, January 01, 2026 &nbsp;•&nbsp; 00:00:00 AM EST
+    </span>
+  );
 
 // toLocaleDateString and toLocaleTimeString condense this info which is then held under the strings "date" and "time" respectively. 
 // The timeZone is set to New York time since that's where the stock market is based.
