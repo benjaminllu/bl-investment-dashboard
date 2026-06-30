@@ -6,26 +6,14 @@ import ResearchFeed from "@/components/ResearchFeed";
 import { getLatestArticles } from "@/lib/substack";
 import { fetchWatchlistNews, fetchMarketNews } from "@/lib/finnhubNews";
 
-async function fetchQuote(ticker: string): Promise<{ price: number; changePct: number }> {
-  const key = process.env.FINNHUB_API_KEY;
-  if (!key) return { price: 0, changePct: 0 };
-  try {
-    const res = await fetch(
-      `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${key}`,
-      { next: { revalidate: 300 } }
-    );
-    const data = await res.json();
-    return { price: data.c ?? 0, changePct: data.dp ?? 0 };
-  } catch {
-    return { price: 0, changePct: 0 };
-  }
-}
-
 export default async function Home() {
-  const { data: watchlist, error } = await supabase
-    .from("stocks")
-    .select("*")
-    .order("created_at", { ascending: true });
+  const [
+    { data: watchlist, error },
+    { data: quotes },
+  ] = await Promise.all([
+    supabase.from("stocks").select("*").order("created_at", { ascending: true }),
+    supabase.from("stock_quotes").select("ticker, price, change_pct"),
+  ]);
 
   if (error || !watchlist) {
     return (
@@ -35,18 +23,18 @@ export default async function Home() {
     );
   }
 
-  const stocks = await Promise.all(
-    watchlist.map(async (stock) => { 
-      const { price, changePct } = await fetchQuote(stock.ticker);
-      return { ...stock, price, changePct };
-    })
+  const quoteMap = new Map(
+    (quotes ?? []).map((q) => [q.ticker, { price: q.price ?? 0, changePct: q.change_pct ?? 0 }])
   );
 
-  const validPrices = stocks.filter((s) => s.price > 0);
-  const tickers = (validPrices.length > 0 ? validPrices : stocks).map((s) => s.ticker);
+  const stocks = watchlist.map((stock) => {
+    const { price, changePct } = quoteMap.get(stock.ticker) ?? { price: 0, changePct: 0 };
+    return { ...stock, price, changePct };
+  });
+
   const [articles, watchlistNews, marketNews] = await Promise.all([
     getLatestArticles(10),
-    fetchWatchlistNews(tickers),
+    fetchWatchlistNews(),
     fetchMarketNews(),
   ]);
 

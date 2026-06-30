@@ -1,3 +1,5 @@
+import { supabase } from "@/lib/supabase";
+
 export interface NewsItem {
   headline: string;
   url: string;
@@ -76,47 +78,31 @@ function isLowQuality(item: FinnhubArticle): boolean {
   return CLICKBAIT_PATTERNS.some((re) => re.test(item.headline));
 }
 
-export async function fetchWatchlistNews(tickers: string[]): Promise<NewsItem[]> {
-  const key = process.env.FINNHUB_API_KEY;
-  if (!key || tickers.length === 0) return [];
-  const capped = tickers.slice(0, 15);
-  const today = new Date();
-  const from = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const to = today.toISOString().split("T")[0];
+export async function fetchWatchlistNews(): Promise<NewsItem[]> {
+  const { data, error } = await supabase
+    .from("stock_news")
+    .select("ticker, headline, url, source, image, datetime")
+    .order("datetime", { ascending: false })
+    .limit(50);
 
-  const results = await Promise.allSettled(
-    capped.map(async (ticker) => {
-      const res = await fetch(
-        `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${key}`,
-        { next: { revalidate: 900 } }
-      );
-      if (!res.ok) return [] as NewsItem[];
-      const data: FinnhubArticle[] = await res.json();
-      return data
-        .filter((item) => !isLowQuality(item))
-        .slice(0, 3)
-        .map((item) => ({
-          headline: item.headline,
-          url: item.url,
-          datetime: item.datetime,
-          source: item.source,
-          image: item.image || null,
-          ticker,
-        }));
-    })
-  );
+  if (error || !data) return [];
 
   const seen = new Set<string>();
-  return results
-    .filter((r): r is PromiseFulfilledResult<NewsItem[]> => r.status === "fulfilled")
-    .flatMap((r) => r.value)
+  return data
     .filter((item) => {
       if (seen.has(item.url)) return false;
       seen.add(item.url);
       return true;
     })
-    .sort((a, b) => b.datetime - a.datetime)
-    .slice(0, 10);
+    .slice(0, 10)
+    .map((item) => ({
+      headline: item.headline,
+      url: item.url,
+      datetime: item.datetime,
+      source: item.source,
+      image: item.image,
+      ticker: item.ticker,
+    }));
 }
 
 export async function fetchMarketNews(): Promise<NewsItem[]> {
