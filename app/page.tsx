@@ -12,7 +12,7 @@ export default async function Home() {
     { data: quotes },
   ] = await Promise.all([
     supabase.from("stocks").select("*").order("created_at", { ascending: true }),
-    supabase.from("stock_quotes").select("ticker, price, change_pct"),
+    supabase.from("stock_quotes").select("ticker, price, change_pct, updated_at"),
   ]);
 
   if (error || !watchlist) {
@@ -24,12 +24,19 @@ export default async function Home() {
   }
 
   const quoteMap = new Map(
-    (quotes ?? []).map((q) => [q.ticker, { price: q.price ?? 0, changePct: q.change_pct ?? 0 }])
+    (quotes ?? []).map((q) => [
+      q.ticker,
+      { price: q.price ?? 0, changePct: q.change_pct ?? 0, updatedAt: q.updated_at ?? null },
+    ])
   );
 
   const stocks = watchlist.map((stock) => {
-    const { price, changePct } = quoteMap.get(stock.ticker) ?? { price: 0, changePct: 0 };
-    return { ...stock, price, changePct };
+    const { price, changePct, updatedAt } = quoteMap.get(stock.ticker) ?? {
+      price: 0,
+      changePct: 0,
+      updatedAt: null,
+    };
+    return { ...stock, price, changePct, updatedAt };
   });
 
   const [articles, watchlistNews, marketNews] = await Promise.all([

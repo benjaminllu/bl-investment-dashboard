@@ -8,8 +8,17 @@ export type Stock = {
   changePct: number;
   priority: string;
   latest_update: string;
+  updatedAt: string | null;
   list: string | null;
 };
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return "—";
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
 
 type StockTableProps = {
   stocks: Stock[];
@@ -56,7 +65,7 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
                 </span>
               </td>
               <td className="px-3 py-2">{stock.priority}</td>
-              <td className="px-3 py-2 text-slate-300">{stock.latest_update}</td>
+              <td className="px-3 py-2 text-slate-400">{timeAgo(stock.updatedAt)}</td>
             </tr>
           ))}
         </tbody>
