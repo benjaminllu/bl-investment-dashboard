@@ -28,8 +28,8 @@ async function fetchPosts(
   subscribed: boolean
 ): Promise<SubstackArticle[]> {
   try {
-    const res = await fetch(`${baseUrl}/api/v1/posts?limit=20&sort=new`, {
-      next: { revalidate: 3600 },
+    const res = await fetch(`${baseUrl}/api/v1/posts?limit=5&sort=new`, {
+      cache: "no-store",
     });
     if (!res.ok) return [];
     const posts: SubstackPost[] = await res.json();
