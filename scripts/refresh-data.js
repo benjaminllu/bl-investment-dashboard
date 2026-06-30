@@ -1,15 +1,25 @@
-const fs = require("fs");
 const { createClient } = require("@supabase/supabase-js");
 
-const envContent = fs.readFileSync(".env.local", "utf8");
-const env = {};
-for (const line of envContent.split(/\r?\n/)) {
-  const match = line.match(/^([^=]+)=(.*)$/);
-  if (match) env[match[1].trim()] = match[2].trim();
+// In GitHub Actions these come from the workflow env: block.
+// Locally, load .env.local if present so the script works without manual export.
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  try {
+    const fs = require("fs");
+    const envContent = fs.readFileSync(".env.local", "utf8");
+    for (const line of envContent.split(/\r?\n/)) {
+      const match = line.match(/^([^=]+)=(.*)$/);
+      if (match) process.env[match[1].trim()] = match[2].trim();
+    }
+  } catch {
+    // .env.local not present — rely on process.env already being set
+  }
 }
 
-const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-const FINNHUB_KEY = env.FINNHUB_API_KEY;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
 
 const BLOCKED_DOMAINS = new Set([
   "wsj.com", "barrons.com", "ft.com", "seekingalpha.com",
