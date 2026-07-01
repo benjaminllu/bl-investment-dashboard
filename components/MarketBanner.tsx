@@ -76,9 +76,10 @@ async function fetchTreasuryYields(): Promise<YieldData> {
 }
 
 export default async function MarketBanner() {
-  const [results, yields] = await Promise.all([
+  const [results, yields, futures] = await Promise.all([
     Promise.allSettled(INDICES.map((idx) => fetchIndexQuote(idx.ticker))),
     fetchTreasuryYields(),
+    fetchIndexQuote("ES1!"),
   ]);
 
   const indices = INDICES.map((idx, i) => {
@@ -92,15 +93,22 @@ export default async function MarketBanner() {
     <div className="flex flex-wrap items-center justify-between gap-4">
       <MarketClock />
       <div className="flex flex-wrap items-center gap-6">
-        {indices.map(({ label, price, changePct }) => {
+        {indices.map(({ label, ticker, price, changePct }) => {
           const color = changePct === null ? "text-slate-400" : changePct >= 0 ? "text-green-400" : "text-red-400";
           const formattedPct = changePct === null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`;
           const formattedPrice = price === null ? "—" : `$${price.toFixed(2)}`;
+          const futColor = futures.changePct === null ? "text-slate-400" : futures.changePct >= 0 ? "text-green-400" : "text-red-400";
           return (
             <div key={label} className="text-center">
               <p className="text-xs text-slate-400">{label}</p>
               <p className="text-sm font-semibold text-white">{formattedPrice}</p>
               <p className={`text-xs ${color}`}>{formattedPct}</p>
+              {ticker === "SPY" && futures.price !== null && (
+                <p className={`text-xs ${futColor}`}>
+                  Fut {futures.price.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  {futures.changePct !== null && ` (${futures.changePct >= 0 ? "+" : ""}${futures.changePct.toFixed(2)}%)`}
+                </p>
+              )}
             </div>
           );
         })}
