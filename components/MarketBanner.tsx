@@ -17,18 +17,26 @@ interface YieldData {
   tenYearBps: number | null;
 }
 
-async function fetchIndexQuote(ticker: string): Promise<number | null> {
+interface IndexQuote {
+  price: number | null;
+  changePct: number | null;
+}
+
+async function fetchIndexQuote(ticker: string): Promise<IndexQuote> {
   const key = process.env.FINNHUB_API_KEY;
-  if (!key) return null;
+  if (!key) return { price: null, changePct: null };
   try {
     const res = await fetch(
       `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${key}`,
       { next: { revalidate: 300 } }
     );
     const data = await res.json();
-    return typeof data.dp === "number" ? data.dp : null;
+    return {
+      price: typeof data.c === "number" ? data.c : null,
+      changePct: typeof data.dp === "number" ? data.dp : null,
+    };
   } catch {
-    return null;
+    return { price: null, changePct: null };
   }
 }
 
@@ -73,24 +81,26 @@ export default async function MarketBanner() {
     fetchTreasuryYields(),
   ]);
 
-  const indices = INDICES.map((idx, i) => ({
-    ...idx,
-    changePct: results[i].status === "fulfilled"
-      ? (results[i] as PromiseFulfilledResult<number | null>).value
-      : null,
-  }));
+  const indices = INDICES.map((idx, i) => {
+    const quote = results[i].status === "fulfilled"
+      ? (results[i] as PromiseFulfilledResult<IndexQuote>).value
+      : { price: null, changePct: null };
+    return { ...idx, price: quote.price, changePct: quote.changePct };
+  });
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <MarketClock />
       <div className="flex flex-wrap items-center gap-6">
-        {indices.map(({ label, changePct }) => {
+        {indices.map(({ label, price, changePct }) => {
           const color = changePct === null ? "text-slate-400" : changePct >= 0 ? "text-green-400" : "text-red-400";
-          const formatted = changePct === null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`;
+          const formattedPct = changePct === null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`;
+          const formattedPrice = price === null ? "—" : `$${price.toFixed(2)}`;
           return (
             <div key={label} className="text-center">
               <p className="text-xs text-slate-400">{label}</p>
-              <p className={`text-sm font-semibold ${color}`}>{formatted}</p>
+              <p className="text-sm font-semibold text-white">{formattedPrice}</p>
+              <p className={`text-xs ${color}`}>{formattedPct}</p>
             </div>
           );
         })}
