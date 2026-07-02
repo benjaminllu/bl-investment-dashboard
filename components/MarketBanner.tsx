@@ -32,8 +32,8 @@ async function fetchIndexQuote(ticker: string): Promise<IndexQuote> {
     );
     const data = await res.json();
     return {
-      price: typeof data.c === "number" ? data.c : null,
-      changePct: typeof data.dp === "number" ? data.dp : null,
+      price: typeof data.c === "number" && data.c !== 0 ? data.c : null,
+      changePct: typeof data.dp === "number" && data.c !== 0 ? data.dp : null,
     };
   } catch {
     return { price: null, changePct: null };
