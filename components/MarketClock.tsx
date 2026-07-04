@@ -19,10 +19,10 @@ function getMarketStatus(now: Date): MarketStatus {
 }
 
 const STATUS_LABEL: Record<MarketStatus, string> = {
-  open: "Open",
+  open: "Market Open",
   pre: "Pre-Market",
   after: "After Hours",
-  closed: "Closed",
+  closed: "Market Closed",
 };
 
 const STATUS_COLOR: Record<MarketStatus, string> = {
