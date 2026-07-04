@@ -90,10 +90,23 @@ export default async function MarketBanner() {
   });
 
   return (
-    <div className="flex flex-col gap-2">
-      <h1 className="text-2xl font-bold text-white">Ben&apos;s Investment Research</h1>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-      <MarketClock />
+    <div className="flex items-center justify-between gap-6">
+
+      {/* Left: title + clock stacked */}
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-emerald-400">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+            <polyline points="16 7 22 7 22 13" />
+          </svg>
+          <h1 className="font-serif text-2xl italic tracking-wide text-white">
+            Ben&apos;s Investment Research
+          </h1>
+        </div>
+        <MarketClock />
+      </div>
+
+      {/* Right: market data centered between title and clock */}
       <div className="flex flex-wrap items-center gap-6">
         {indices.map(({ label, ticker, price, changePct }) => {
           const color = changePct === null ? "text-slate-400" : changePct >= 0 ? "text-green-400" : "text-red-400";
@@ -134,7 +147,7 @@ export default async function MarketBanner() {
           </div>
         ))}
       </div>
-    </div>
+
     </div>
   );
 }
