@@ -16,7 +16,7 @@ async function getGeminiSummary(headline: string, source: string): Promise<strin
               text: `You are a concise financial analyst. Based on this news headline from ${source}, write a single focused paragraph explaining what this story is about and its potential implications for investors. Do not speculate beyond what the headline suggests. Be direct and factual.\n\nHeadline: "${headline}"`,
             }],
           }],
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
+          generationConfig: { maxOutputTokens: 1600, temperature: 0.3 },
         }),
         cache: "no-store",
       }
