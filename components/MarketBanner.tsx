@@ -90,7 +90,9 @@ export default async function MarketBanner() {
   });
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="flex flex-col gap-2">
+      <h1 className="text-2xl font-bold text-white">Ben&apos;s Investment Research</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
       <MarketClock />
       <div className="flex flex-wrap items-center gap-6">
         {indices.map(({ label, ticker, price, changePct }) => {
@@ -132,6 +134,7 @@ export default async function MarketBanner() {
           </div>
         ))}
       </div>
+    </div>
     </div>
   );
 }
