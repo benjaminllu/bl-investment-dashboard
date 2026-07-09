@@ -1,30 +1,47 @@
+import { unstable_cache } from "next/cache";
 import { fetchMarketNews } from "@/lib/finnhubNews";
 
-async function getGeminiSummary(headline: string, source: string): Promise<string | null> {
+async function generateGeminiSummary(headline: string, source: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
+  if (!key) throw new Error("GEMINI_API_KEY not set");
 
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `You are a concise financial analyst. Based on this news headline from ${source}, write a single focused paragraph explaining what this story is about and its potential implications for investors. Do not speculate beyond what the headline suggests. Be direct and factual.\n\nHeadline: "${headline}"`,
-            }],
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `You are a concise financial analyst. Based on this news headline from ${source}, write a single focused paragraph explaining what this story is about and its potential implications for investors. Do not speculate beyond what the headline suggests. Be direct and factual.\n\nHeadline: "${headline}"`,
           }],
-          generationConfig: { maxOutputTokens: 1600, temperature: 0.3 },
-        }),
-        next: { revalidate: 900 },
-      }
-    );
+        }],
+        generationConfig: { maxOutputTokens: 1600, temperature: 0.3 },
+      }),
+      cache: "no-store",
+    }
+  );
 
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+  if (!res.ok) throw new Error(`Gemini request failed: ${res.status}`);
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Gemini response missing summary text");
+  return text;
+}
+
+// Only successful generations are cached (unstable_cache never caches a thrown
+// error), so a failed request always retries fresh on the next page load
+// instead of being stuck behind the 15-minute revalidate window.
+const getCachedGeminiSummary = unstable_cache(
+  generateGeminiSummary,
+  ["gemini-summary"],
+  { revalidate: 900 }
+);
+
+async function getGeminiSummary(headline: string, source: string): Promise<string | null> {
+  if (!process.env.GEMINI_API_KEY) return null;
+  try {
+    return await getCachedGeminiSummary(headline, source);
   } catch {
     return null;
   }
