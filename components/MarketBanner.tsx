@@ -90,16 +90,16 @@ export default async function MarketBanner() {
   });
 
   return (
-    <div className="flex items-center justify-between gap-6">
+    <div className="flex items-center justify-between gap-4">
 
       {/* Left: title + clock stacked */}
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-emerald-400">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-accent">
             <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
             <polyline points="16 7 22 7 22 13" />
           </svg>
-          <h1 className="font-serif text-2xl italic tracking-wide text-white">
+          <h1 className="font-serif text-2xl italic tracking-wide text-foreground">
             Ben&apos;s Investment Research
           </h1>
         </div>
@@ -107,16 +107,16 @@ export default async function MarketBanner() {
       </div>
 
       {/* Right: market data centered between title and clock */}
-      <div className="flex flex-wrap items-center gap-6">
+      <div className="flex flex-wrap items-center gap-4">
         {indices.map(({ label, ticker, price, changePct }) => {
-          const color = changePct === null ? "text-slate-400" : changePct >= 0 ? "text-green-400" : "text-red-400";
+          const color = changePct === null ? "text-muted-foreground" : changePct >= 0 ? "text-accent" : "text-destructive";
           const formattedPct = changePct === null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`;
           const formattedPrice = price === null ? "—" : `$${price.toFixed(2)}`;
-          const futColor = futures.changePct === null ? "text-slate-400" : futures.changePct >= 0 ? "text-green-400" : "text-red-400";
+          const futColor = futures.changePct === null ? "text-muted-foreground" : futures.changePct >= 0 ? "text-accent" : "text-destructive";
           return (
             <div key={label} className="text-center">
-              <p className="text-xs text-slate-400">{label}</p>
-              <p className="text-sm font-semibold text-white">{formattedPrice}</p>
+              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className="text-sm font-semibold text-foreground">{formattedPrice}</p>
               <p className={`text-xs ${color}`}>{formattedPct}</p>
               {ticker === "SPY" && futures.price !== null && (
                 <p className={`text-xs ${futColor}`}>
@@ -128,18 +128,18 @@ export default async function MarketBanner() {
           );
         })}
 
-        <div className="h-6 w-px bg-slate-700" />
+        <div className="h-6 w-px bg-border" />
 
         {[
           { label: "2Y", value: yields.twoYear, bps: yields.twoYearBps },
           { label: "10Y", value: yields.tenYear, bps: yields.tenYearBps },
         ].map(({ label, value, bps }) => (
           <div key={label} className="text-center">
-            <p className="text-xs text-slate-400">{label} Yield</p>
-            <p className="text-sm font-semibold text-white">
+            <p className="text-xs text-muted-foreground">{label} Yield</p>
+            <p className="text-sm font-semibold text-foreground">
               {value === null ? "—" : `${value.toFixed(2)}%`}
               {bps !== null && (
-                <span className={`ml-1 text-xs ${bps >= 0 ? "text-red-400" : "text-green-400"}`}>
+                <span className={`ml-1 text-xs ${bps >= 0 ? "text-destructive" : "text-accent"}`}>
                   {bps >= 0 ? "+" : ""}{bps}bps
                 </span>
               )}

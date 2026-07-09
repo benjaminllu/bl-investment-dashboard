@@ -15,8 +15,8 @@ export default async function Home() {
 
   if (error || !watchlist) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <p className="text-slate-400">Failed to load watchlist. Check Supabase connection.</p>
+      <main className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <p className="text-muted-foreground">Failed to load watchlist. Check Supabase connection.</p>
       </main>
     );
   }
@@ -44,9 +44,9 @@ export default async function Home() {
   ]);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-screen-2xl p-6">
-        <div className="flex gap-6 items-start">
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-screen-2xl p-4">
+        <div className="flex gap-4 items-start">
           <div className="min-w-0 flex-1">
             <WatchlistPanel stocks={stocks} />
           </div>

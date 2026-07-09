@@ -18,7 +18,7 @@ async function getGeminiSummary(headline: string, source: string): Promise<strin
           }],
           generationConfig: { maxOutputTokens: 1600, temperature: 0.3 },
         }),
-        cache: "no-store",
+        next: { revalidate: 900 },
       }
     );
 

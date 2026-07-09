@@ -40,26 +40,26 @@ export default function WatchlistPanel({ stocks }: Props) {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {selected && (
         <>
-          <div className="flex items-center justify-center gap-3 rounded-lg bg-slate-900 px-3 py-1.5">
+          <div className="flex items-center justify-center gap-2 rounded-lg bg-card px-2 py-1">
             <button
               onClick={() =>
                 setPresetIndex((i) => (i - 1 + CHART_PRESETS.length) % CHART_PRESETS.length)
               }
               aria-label="Previous chart preset"
-              className="px-2 text-slate-400 transition-colors hover:text-white"
+              className="px-2 text-muted-foreground transition-colors hover:text-foreground"
             >
               ‹
             </button>
-            <span className="w-28 text-center text-sm font-medium text-slate-200">
+            <span className="w-28 text-center text-sm font-medium text-foreground/90">
               {preset.label}
             </span>
             <button
               onClick={() => setPresetIndex((i) => (i + 1) % CHART_PRESETS.length)}
               aria-label="Next chart preset"
-              className="px-2 text-slate-400 transition-colors hover:text-white"
+              className="px-2 text-muted-foreground transition-colors hover:text-foreground"
             >
               ›
             </button>
@@ -72,16 +72,16 @@ export default function WatchlistPanel({ stocks }: Props) {
         </>
       )}
 
-      <div className="overflow-hidden rounded-xl bg-slate-900">
-        <div className="flex gap-1 overflow-x-auto border-b border-slate-800 px-2 pt-2 scrollbar-none [&::-webkit-scrollbar]:hidden">
+      <div className="overflow-hidden rounded-xl bg-card">
+        <div className="flex gap-1 overflow-x-auto border-b border-border px-2 pt-1.5 scrollbar-none [&::-webkit-scrollbar]:hidden">
           {lists.map((list) => (
             <button
               key={list}
               onClick={() => handleListChange(list)}
-              className={`shrink-0 rounded-t px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`shrink-0 rounded-t px-2 py-1 text-sm font-medium transition-colors ${
                 activeList === list
-                  ? "border-b-2 border-white text-white"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "border-b-2 border-foreground text-foreground"
+                  : "text-muted-foreground hover:text-foreground/80"
               }`}
             >
               {list}

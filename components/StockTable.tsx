@@ -28,16 +28,16 @@ type StockTableProps = {
 
 export default function StockTable({ stocks, selected, onSelect }: StockTableProps) {
   return (
-    <div className="overflow-hidden rounded-xl bg-slate-900">
+    <div className="overflow-hidden rounded-xl bg-card">
       <table className="w-full text-left text-sm">
-        <thead className="bg-slate-800 text-slate-300">
+        <thead className="bg-muted text-muted-foreground">
           <tr>
-            <th className="px-3 py-2">Ticker</th>
-            <th className="px-3 py-2">Company</th>
-            <th className="px-3 py-2">Price</th>
-            <th className="px-3 py-2">1D %</th>
-            <th className="px-3 py-2">Priority</th>
-            <th className="px-3 py-2">Latest Update</th>
+            <th className="px-2 py-1.5">Ticker</th>
+            <th className="px-2 py-1.5">Company</th>
+            <th className="px-2 py-1.5">Price</th>
+            <th className="px-2 py-1.5">1D %</th>
+            <th className="px-2 py-1.5">Priority</th>
+            <th className="px-2 py-1.5">Latest Update</th>
           </tr>
         </thead>
 
@@ -45,27 +45,27 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
           {stocks.map((stock) => (
             <tr
               key={stock.ticker}
-              className={`border-t border-slate-800 ${
-                stock.ticker === selected ? "bg-slate-800/60" : ""
+              className={`border-t border-border transition-colors ${
+                stock.ticker === selected ? "bg-muted/60" : ""
               }`}
             >
-              <td className="px-3 py-2 font-semibold">
+              <td className="px-2 py-1.5 font-semibold">
                 <button
                   onClick={() => onSelect?.(stock.ticker)}
-                  className="hover:text-emerald-400"
+                  className="hover:text-accent"
                 >
                   {stock.ticker}
                 </button>
               </td>
-              <td className="px-3 py-2">{stock.company}</td>
-              <td className="px-3 py-2">${stock.price.toFixed(2)}</td>
-              <td className="px-3 py-2">
-                <span className={stock.changePct >= 0 ? "text-emerald-400" : "text-red-400"}>
+              <td className="px-2 py-1.5">{stock.company}</td>
+              <td className="px-2 py-1.5">${stock.price.toFixed(2)}</td>
+              <td className="px-2 py-1.5">
+                <span className={stock.changePct >= 0 ? "text-accent" : "text-destructive"}>
                   {stock.changePct.toFixed(2)}%
                 </span>
               </td>
-              <td className="px-3 py-2">{stock.priority}</td>
-              <td className="px-3 py-2 text-slate-400">{timeAgo(stock.updatedAt)}</td>
+              <td className="px-2 py-1.5">{stock.priority}</td>
+              <td className="px-2 py-1.5 text-muted-foreground">{timeAgo(stock.updatedAt)}</td>
             </tr>
           ))}
         </tbody>

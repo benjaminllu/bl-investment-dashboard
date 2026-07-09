@@ -43,7 +43,7 @@ export default function MarketClock() {
   }, []);
 
   if (!now) return (
-    <span className="invisible text-sm text-slate-400">
+    <span className="invisible text-sm text-muted-foreground">
       Wednesday, January 01, 2026 &nbsp;•&nbsp; 00:00:00 AM EST
     </span>
   );
@@ -70,11 +70,11 @@ export default function MarketClock() {
   const status = getMarketStatus(now);
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-base font-bold text-white">
+    <div className="flex items-center gap-2">
+      <span className="text-base font-bold text-foreground">
         {date} &nbsp;•&nbsp; {time}
       </span>
-      <span className="flex items-center gap-1.5 rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-medium text-white">
+      <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
         <span className={`h-1.5 w-1.5 rounded-full ${STATUS_COLOR[status]}`} />
         {STATUS_LABEL[status]}
       </span>

@@ -23,15 +23,15 @@ function NewsCard({ item }: { item: NewsItem }) {
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex gap-3 rounded-lg bg-slate-800 p-3 transition-colors hover:bg-slate-700"
+      className="flex gap-2 rounded-lg bg-muted p-2 transition-colors hover:bg-border"
     >
       {item.image && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={item.image} alt="" className="h-14 w-14 shrink-0 rounded object-cover" />
       )}
       <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-1 text-xs text-slate-400">
-          <span className="font-medium text-slate-300">{item.source}</span>
+        <div className="mb-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground/80">{item.source}</span>
           {item.ticker && (
             <>
               <span>·</span>
@@ -41,7 +41,7 @@ function NewsCard({ item }: { item: NewsItem }) {
           <span>·</span>
           <span>{date}</span>
         </div>
-        <p className="text-xs font-medium leading-snug text-white line-clamp-3">
+        <p className="text-xs font-medium leading-snug text-foreground line-clamp-3">
           {item.headline}
         </p>
       </div>
@@ -64,16 +64,16 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
   }, [active]);
 
   return (
-    <div className="overflow-hidden rounded-xl bg-slate-900">
-      <div className="flex border-b border-slate-800">
+    <div className="overflow-hidden rounded-xl bg-card">
+      <div className="flex border-b border-border">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActive(tab)}
-            className={`flex-1 px-2 py-3 text-xs font-medium transition-colors ${
+            className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
               active === tab
-                ? "-mb-px border-b-2 border-white text-white"
-                : "text-slate-400 hover:text-slate-200"
+                ? "-mb-px border-b-2 border-foreground text-foreground"
+                : "text-muted-foreground hover:text-foreground/80"
             }`}
           >
             {tab}
@@ -81,7 +81,7 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
         ))}
       </div>
 
-      <div className="p-4">
+      <div className="p-2">
         {active === "X / Twitter" && (
           <a
             className="twitter-timeline"
@@ -94,9 +94,9 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
         )}
 
         {active === "Substack" && (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {articles.length === 0 ? (
-              <p className="text-sm text-slate-500">No articles found.</p>
+              <p className="text-sm text-muted-foreground">No articles found.</p>
             ) : (
               articles.map((article) => (
                 <a
@@ -104,7 +104,7 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
                   href={article.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex gap-3 rounded-lg bg-slate-800 p-3 transition-colors hover:bg-slate-700"
+                  className="flex gap-2 rounded-lg bg-muted p-2 transition-colors hover:bg-border"
                 >
                   {article.coverImage && (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -115,8 +115,8 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
                     />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex flex-wrap items-center gap-1 text-xs text-slate-400">
-                      <span className="font-medium text-slate-300">{article.source}</span>
+                    <div className="mb-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground/80">{article.source}</span>
                       <span>·</span>
                       <span>
                         {article.pubDate
@@ -133,11 +133,11 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
                         </>
                       )}
                     </div>
-                    <p className="text-sm font-medium leading-snug text-white line-clamp-2">
+                    <p className="text-sm font-medium leading-snug text-foreground line-clamp-2">
                       {article.title}
                     </p>
                     {article.subtitle && (
-                      <p className="mt-0.5 text-xs leading-snug text-slate-400 line-clamp-2">
+                      <p className="mt-0.5 text-xs leading-snug text-muted-foreground line-clamp-2">
                         {article.subtitle}
                       </p>
                     )}
@@ -149,9 +149,9 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
         )}
 
         {active === "Market News" && (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {marketNews.length === 0 ? (
-              <p className="text-sm text-slate-500">No market news found.</p>
+              <p className="text-sm text-muted-foreground">No market news found.</p>
             ) : (
               marketNews.map((item) => <NewsCard key={item.url} item={item} />)
             )}
@@ -159,9 +159,9 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
         )}
 
         {active === "WL News" && (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {watchlistNews.length === 0 ? (
-              <p className="text-sm text-slate-500">No recent news found.</p>
+              <p className="text-sm text-muted-foreground">No recent news found.</p>
             ) : (
               watchlistNews.map((item) => <NewsCard key={item.url} item={item} />)
             )}
