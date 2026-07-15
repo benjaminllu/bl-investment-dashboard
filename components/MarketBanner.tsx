@@ -116,10 +116,10 @@ export default async function MarketBanner() {
           return (
             <div key={label} className="text-center">
               <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="text-sm font-semibold text-foreground">{formattedPrice}</p>
-              <p className={`text-xs ${color}`}>{formattedPct}</p>
+              <p className="text-sm font-semibold tabular-nums text-foreground">{formattedPrice}</p>
+              <p className={`text-xs tabular-nums ${color}`}>{formattedPct}</p>
               {ticker === "SPY" && futures.price !== null && (
-                <p className={`text-xs ${futColor}`}>
+                <p className={`text-xs tabular-nums ${futColor}`}>
                   Fut {futures.price.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   {futures.changePct !== null && ` (${futures.changePct >= 0 ? "+" : ""}${futures.changePct.toFixed(2)}%)`}
                 </p>
@@ -136,7 +136,7 @@ export default async function MarketBanner() {
         ].map(({ label, value, bps }) => (
           <div key={label} className="text-center">
             <p className="text-xs text-muted-foreground">{label} Yield</p>
-            <p className="text-sm font-semibold text-foreground">
+            <p className="text-sm font-semibold tabular-nums text-foreground">
               {value === null ? "—" : `${value.toFixed(2)}%`}
               {bps !== null && (
                 <span className={`ml-1 text-xs ${bps >= 0 ? "text-destructive" : "text-accent"}`}>

@@ -86,13 +86,13 @@ export default async function PortfolioPage() {
             <div className="flex gap-4">
               <div className="rounded-xl bg-card px-4 py-2">
                 <p className="text-xs text-muted-foreground">Total Value</p>
-                <p className="text-lg font-semibold text-foreground">
+                <p className="text-lg font-semibold tabular-nums text-foreground">
                   ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
               <div className="rounded-xl bg-card px-4 py-2">
                 <p className="text-xs text-muted-foreground">Unrealized P&amp;L</p>
-                <p className={`text-lg font-semibold ${totalPnl >= 0 ? "text-accent" : "text-destructive"}`}>
+                <p className={`text-lg font-semibold tabular-nums ${totalPnl >= 0 ? "text-accent" : "text-destructive"}`}>
                   {totalPnl >= 0 ? "+" : ""}
                   ${totalPnl.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
@@ -116,15 +116,15 @@ export default async function PortfolioPage() {
                   {rows.map((r) => (
                     <tr key={r.id} className="border-t border-border">
                       <td className="px-2 py-1.5 font-semibold">{r.ticker}</td>
-                      <td className="px-2 py-1.5">{r.quantity}</td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-1.5 tabular-nums">{r.quantity}</td>
+                      <td className="px-2 py-1.5 tabular-nums">
                         {r.avg_cost !== null ? `$${r.avg_cost.toFixed(2)}` : "—"}
                       </td>
-                      <td className="px-2 py-1.5">{r.price !== null ? `$${r.price.toFixed(2)}` : "—"}</td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-1.5 tabular-nums">{r.price !== null ? `$${r.price.toFixed(2)}` : "—"}</td>
+                      <td className="px-2 py-1.5 tabular-nums">
                         {r.marketValue !== null ? `$${r.marketValue.toFixed(2)}` : "—"}
                       </td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-1.5 tabular-nums">
                         {r.pnl !== null ? (
                           <span className={r.pnl >= 0 ? "text-accent" : "text-destructive"}>
                             {r.pnl >= 0 ? "+" : ""}${r.pnl.toFixed(2)}
@@ -133,7 +133,7 @@ export default async function PortfolioPage() {
                           "—"
                         )}
                       </td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-1.5 tabular-nums">
                         {r.pnlPct !== null ? (
                           <span className={r.pnlPct >= 0 ? "text-accent" : "text-destructive"}>
                             {r.pnlPct >= 0 ? "+" : ""}

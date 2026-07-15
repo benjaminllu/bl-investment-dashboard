@@ -43,13 +43,13 @@ export default function WatchlistPanel({ stocks }: Props) {
     <div className="space-y-2">
       {selected && (
         <>
-          <div className="flex items-center justify-center gap-2 rounded-lg bg-card px-2 py-1">
+          <div className="flex items-center justify-center gap-2 rounded-lg bg-card px-2">
             <button
               onClick={() =>
                 setPresetIndex((i) => (i - 1 + CHART_PRESETS.length) % CHART_PRESETS.length)
               }
               aria-label="Previous chart preset"
-              className="px-2 text-muted-foreground transition-colors hover:text-foreground"
+              className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
             >
               ‹
             </button>
@@ -59,7 +59,7 @@ export default function WatchlistPanel({ stocks }: Props) {
             <button
               onClick={() => setPresetIndex((i) => (i + 1) % CHART_PRESETS.length)}
               aria-label="Next chart preset"
-              className="px-2 text-muted-foreground transition-colors hover:text-foreground"
+              className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
             >
               ›
             </button>
@@ -78,7 +78,7 @@ export default function WatchlistPanel({ stocks }: Props) {
             <button
               key={list}
               onClick={() => handleListChange(list)}
-              className={`shrink-0 rounded-t px-2 py-1 text-sm font-medium transition-colors ${
+              className={`flex min-h-11 shrink-0 items-center rounded-t px-2 text-sm font-medium transition-colors ${
                 activeList === list
                   ? "border-b-2 border-foreground text-foreground"
                   : "text-muted-foreground hover:text-foreground/80"

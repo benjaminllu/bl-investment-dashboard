@@ -58,8 +58,8 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
                 </button>
               </td>
               <td className="px-2 py-1.5">{stock.company}</td>
-              <td className="px-2 py-1.5">${stock.price.toFixed(2)}</td>
-              <td className="px-2 py-1.5">
+              <td className="px-2 py-1.5 tabular-nums">${stock.price.toFixed(2)}</td>
+              <td className="px-2 py-1.5 tabular-nums">
                 <span className={stock.changePct >= 0 ? "text-accent" : "text-destructive"}>
                   {stock.changePct.toFixed(2)}%
                 </span>

@@ -62,16 +62,16 @@ export default async function AISummaryPage() {
   const summary = article ? await getGeminiSummary(article.headline, article.source) : null;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-screen-2xl p-6">
-        <h1 className="mb-6 text-2xl font-bold text-white">AI Summary</h1>
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-screen-2xl p-4">
+        <h1 className="mb-4 text-2xl font-bold text-foreground">AI Summary</h1>
 
         {!article && (
-          <p className="text-slate-400">No market news available.</p>
+          <p className="text-muted-foreground">No market news available.</p>
         )}
 
         {article && (
-          <div className="max-w-2xl rounded-xl bg-slate-900 p-6">
+          <div className="max-w-2xl rounded-xl bg-card p-4">
             {article.image && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -81,7 +81,7 @@ export default async function AISummaryPage() {
               />
             )}
 
-            <p className="mb-1 text-xs text-slate-500">
+            <p className="mb-1 text-xs text-muted-foreground">
               {article.source} &nbsp;•&nbsp; {formatDate(article.datetime)}
             </p>
 
@@ -89,19 +89,19 @@ export default async function AISummaryPage() {
               href={article.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="mb-4 block text-lg font-semibold text-white hover:text-emerald-400"
+              className="mb-4 block text-lg font-semibold text-foreground hover:text-accent"
             >
               {article.headline}
             </a>
 
-            <div className="border-t border-slate-800 pt-4">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-emerald-400">
+            <div className="border-t border-border pt-4">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">
                 AI Analysis
               </p>
               {summary ? (
-                <p className="text-sm leading-relaxed text-slate-300">{summary}</p>
+                <p className="text-sm leading-relaxed text-foreground/90">{summary}</p>
               ) : (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   {process.env.GEMINI_API_KEY
                     ? "Failed to generate summary."
                     : "Add GEMINI_API_KEY to enable AI analysis."}

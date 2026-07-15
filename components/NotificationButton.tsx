@@ -84,14 +84,14 @@ export default function NotificationButton() {
           <button
             onClick={sendTest}
             disabled={sending}
-            className="rounded px-2 py-1 text-xs text-slate-400 hover:text-white disabled:opacity-50"
+            className="rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
             {sending ? "Sending…" : "Send Test"}
           </button>
           <button
             onClick={disable}
             disabled={loading}
-            className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-400 hover:text-white disabled:opacity-50"
+            className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
             Disable Notifications
           </button>
@@ -100,7 +100,7 @@ export default function NotificationButton() {
         <button
           onClick={enable}
           disabled={loading}
-          className="rounded bg-emerald-700 px-2 py-1 text-xs text-white hover:bg-emerald-600 disabled:opacity-50"
+          className="rounded bg-accent px-2 py-1 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {loading ? "Enabling…" : "Enable Notifications"}
         </button>
