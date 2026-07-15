@@ -13,4 +13,5 @@ export const substacks = [
   { name: "Macro Mostly", url: "https://macromostly.substack.com/", subscribed: false },
   { name: "Damped Spring", url: "https://dampedspring101.substack.com/", subscribed: false },
   { name: "JWS Macro", url: "https://jwsmacro.substack.com/", subscribed: false },
+  { name: "The Weekly Chartstorm", url: "https://www.chartstorm.info/", subscribed: false },
 ];
