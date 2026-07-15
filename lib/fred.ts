@@ -51,7 +51,10 @@ async function fetchSeries(def: FredSeriesDef, apiKey: string): Promise<FredMetr
       `?series_id=${def.id}&api_key=${apiKey}&file_type=json` +
       `&units=${def.transform}&sort_order=desc&limit=2`;
     const res = await fetch(url, { next: { revalidate: 3600 } });
-    if (!res.ok) return empty;
+    if (!res.ok) {
+      console.error(`[fred] ${def.id} failed: HTTP ${res.status} ${await res.text()}`);
+      return empty;
+    }
     const data = await res.json();
     const obs: { date: string; value: string }[] = data.observations ?? [];
     return {
@@ -62,7 +65,8 @@ async function fetchSeries(def: FredSeriesDef, apiKey: string): Promise<FredMetr
       previousValue: parseValue(obs[1]?.value),
       date: obs[0]?.date ?? null,
     };
-  } catch {
+  } catch (e) {
+    console.error(`[fred] ${def.id} threw:`, e);
     return empty;
   }
 }
@@ -94,7 +98,10 @@ export async function fetchFredHistory(seriesId: string, range: FredRange): Prom
 
   try {
     const res = await fetch(url, { next: { revalidate: 3600 } });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error(`[fred] ${seriesId} history failed: HTTP ${res.status} ${await res.text()}`);
+      return [];
+    }
     const data = await res.json();
     const obs: { date: string; value: string }[] = data.observations ?? [];
     return obs.reduce<FredObservation[]>((acc, o) => {
@@ -102,7 +109,8 @@ export async function fetchFredHistory(seriesId: string, range: FredRange): Prom
       if (value !== null) acc.push({ date: o.date, value });
       return acc;
     }, []);
-  } catch {
+  } catch (e) {
+    console.error(`[fred] ${seriesId} history threw:`, e);
     return [];
   }
 }
