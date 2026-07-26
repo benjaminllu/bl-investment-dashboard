@@ -2,7 +2,10 @@ name: Refresh Stock Data
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # GitHub throttles free-tier scheduled runs heavily, so a tight interval
+    # never actually fires on time. Every 30m gives the serial refresh loop
+    # plenty of room to finish between runs while keeping quotes reasonably fresh.
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:

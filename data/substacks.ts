@@ -14,4 +14,5 @@ export const substacks = [
   { name: "Damped Spring", url: "https://dampedspring101.substack.com/", subscribed: false },
   { name: "JWS Macro", url: "https://jwsmacro.substack.com/", subscribed: false },
   { name: "The Weekly Chartstorm", url: "https://www.chartstorm.info/", subscribed: false },
+  { name: "Exponential View", url: "https://www.exponentialview.co/", subscribed: false },
 ];
