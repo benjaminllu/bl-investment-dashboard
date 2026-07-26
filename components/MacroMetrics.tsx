@@ -17,12 +17,16 @@ function formatDate(iso: string): string {
   });
 }
 
-export default function MarketsMetrics({ metrics }: { metrics: FredMetric[] }) {
+export default function MacroMetrics({ metrics }: { metrics: FredMetric[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(metrics[0]?.id ?? null);
   const selected = metrics.find((m) => m.id === selectedId) ?? null;
 
   return (
     <div className="space-y-4">
+      {selected && (
+        <FredChart seriesId={selected.id} label={selected.label} unit={selected.unit} />
+      )}
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {metrics.map((metric) => {
           const delta =
@@ -35,11 +39,12 @@ export default function MarketsMetrics({ metrics }: { metrics: FredMetric[] }) {
             <button
               key={metric.id}
               onClick={() => setSelectedId(active ? null : metric.id)}
-              className={`rounded-xl bg-card p-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              title={metric.label}
+              className={`rounded-xl bg-card p-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 active ? "ring-2 ring-accent" : ""
               }`}
             >
-              <p className="text-sm font-medium text-muted-foreground">{metric.label}</p>
+              <p className="truncate text-sm font-medium text-muted-foreground">{metric.label}</p>
               <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
                 {formatValue(metric.value, metric.unit)}
               </p>
@@ -66,10 +71,6 @@ export default function MarketsMetrics({ metrics }: { metrics: FredMetric[] }) {
           );
         })}
       </div>
-
-      {selected && (
-        <FredChart seriesId={selected.id} label={selected.label} unit={selected.unit} />
-      )}
     </div>
   );
 }

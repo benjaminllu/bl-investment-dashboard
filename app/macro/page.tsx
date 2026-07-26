@@ -1,14 +1,21 @@
 import { fetchFredMetrics } from "@/lib/fred";
-import MarketsMetrics from "@/components/MarketsMetrics";
+import { fetchFedDotPlot } from "@/lib/fedDotPlot";
+import { fetchMacroKeyDates } from "@/lib/keyDates";
+import MacroMetrics from "@/components/MacroMetrics";
+import MacroKeyBand from "@/components/MacroKeyBand";
 
-export default async function MarketsPage() {
-  const metrics = await fetchFredMetrics();
+export default async function MacroPage() {
   const hasApiKey = !!process.env.FRED_API_KEY;
+  const [metrics, dotPlot, keyDates] = await Promise.all([
+    fetchFredMetrics(),
+    fetchFedDotPlot(),
+    fetchMacroKeyDates(),
+  ]);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-screen-2xl p-4">
-        <h1 className="mb-4 text-2xl font-bold text-foreground">Markets</h1>
+      <div className="mx-auto max-w-screen-2xl space-y-4 p-4">
+        <h1 className="text-2xl font-bold text-foreground">Macro</h1>
 
         {!hasApiKey ? (
           <div className="rounded-xl bg-card p-4">
@@ -28,7 +35,10 @@ export default async function MarketsPage() {
             </p>
           </div>
         ) : (
-          <MarketsMetrics metrics={metrics} />
+          <>
+            <MacroKeyBand dotPlot={dotPlot} keyDates={keyDates} />
+            <MacroMetrics metrics={metrics} />
+          </>
         )}
       </div>
     </main>

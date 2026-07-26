@@ -35,6 +35,17 @@ export const FRED_SERIES: FredSeriesDef[] = [
   { id: "GDPC1", label: "Real GDP Growth (YoY)", unit: "%", transform: "pc1" },
   { id: "VIXCLS", label: "VIX (Volatility Index)", unit: "", transform: "lin" },
   { id: "DTWEXBGS", label: "Trade-Weighted US Dollar Index", unit: "", transform: "lin" },
+  { id: "ICSA", label: "Initial Jobless Claims (Weekly)", unit: "", transform: "lin" },
+  { id: "M2SL", label: "M2 Money Supply (YoY)", unit: "%", transform: "pc1" },
+  { id: "WALCL", label: "Fed Balance Sheet (Total Assets, $M)", unit: "", transform: "lin" },
+  { id: "RRPONTSYD", label: "Reverse Repo Facility Usage ($B)", unit: "", transform: "lin" },
+  { id: "NFCI", label: "Chicago Fed Financial Conditions Index", unit: "", transform: "lin" },
+  { id: "STLFSI4", label: "St. Louis Fed Financial Stress Index", unit: "", transform: "lin" },
+  // Quarterly survey (not weekly/monthly like most series here) — date will lag further behind "today" than its neighbors.
+  { id: "DRTSCILM", label: "Senior Loan Officers Tightening C&I Standards", unit: "%", transform: "lin" },
+  { id: "INDPRO", label: "Industrial Production (YoY)", unit: "%", transform: "pc1" },
+  { id: "PERMIT", label: "Building Permits (YoY)", unit: "%", transform: "pc1" },
+  { id: "UMCSENT", label: "U. Michigan Consumer Sentiment", unit: "", transform: "lin" },
 ];
 
 function parseValue(raw: string | undefined): number | null {
