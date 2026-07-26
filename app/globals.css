@@ -14,6 +14,7 @@
   --border: #1e293b;
   --accent: #34d399;
   --destructive: #f87171;
+  --warning: #fbbf24;
   --ring: #34d399;
 }
 
@@ -26,6 +27,7 @@
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
   --color-ring: var(--ring);
   --font-sans: var(--font-ibm-plex-sans);
 }
@@ -38,5 +40,14 @@ body {
 @layer base {
   button:not(:disabled) {
     cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -46,11 +46,11 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-screen-2xl p-4">
-        <div className="flex gap-4 items-start">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-col gap-4 items-start lg:flex-row">
+          <div className="min-w-0 w-full flex-1">
             <WatchlistPanel stocks={stocks} />
           </div>
-          <div className="w-1/4 shrink-0">
+          <div className="w-full shrink-0 lg:w-1/4">
             <ResearchFeed articles={articles} watchlistNews={watchlistNews} marketNews={marketNews} />
           </div>
         </div>

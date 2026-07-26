@@ -80,7 +80,7 @@ export default function WatchlistPanel({ stocks }: Props) {
               onClick={() => handleListChange(list)}
               className={`flex min-h-11 shrink-0 items-center rounded-t px-2 text-sm font-medium transition-colors ${
                 activeList === list
-                  ? "border-b-2 border-foreground text-foreground"
+                  ? "border-b-2 border-accent text-accent"
                   : "text-muted-foreground hover:text-foreground/80"
               }`}
             >

@@ -72,7 +72,7 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
             onClick={() => setActive(tab)}
             className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
               active === tab
-                ? "-mb-px border-b-2 border-foreground text-foreground"
+                ? "-mb-px border-b-2 border-accent text-accent"
                 : "text-muted-foreground hover:text-foreground/80"
             }`}
           >

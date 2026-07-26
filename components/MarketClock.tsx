@@ -26,10 +26,10 @@ const STATUS_LABEL: Record<MarketStatus, string> = {
 };
 
 const STATUS_COLOR: Record<MarketStatus, string> = {
-  open: "bg-green-500",
-  pre: "bg-yellow-400",
-  after: "bg-yellow-400",
-  closed: "bg-red-500",
+  open: "bg-accent",
+  pre: "bg-warning",
+  after: "bg-warning",
+  closed: "bg-destructive",
 };
 
 export default function MarketClock() {
