@@ -43,3 +43,9 @@ next-env.d.ts
 # python (skill scripts)
 __pycache__/
 *.pyc
+
+# vendored agent skill tooling (installed locally, not project source).
+# .impeccable/ itself IS committed — it holds this project's design tokens.
+.claude/skills/impeccable/
+.github/skills/impeccable/
+.github/hooks/

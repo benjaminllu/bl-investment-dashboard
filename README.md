@@ -38,7 +38,7 @@ Data flows through two separate paths:
 - **Database:** Supabase (PostgreSQL)
 - **Hosting:** Vercel
 - **Background Jobs:** GitHub Actions (cron, effectively ~hourly due to scheduler variance)
-- **Market Data:** Finnhub API (free tier, 60 req/min)
+- **Market Data:** Finnhub API (free tier, 60 req/min), FRED API (free)
 - **AI:** Google Gemini (free tier)
 - **Brokerage Data:** Interactive Brokers Client Portal Web API (local gateway, on-demand sync — see below)
 - **Charts:** TradingView Lightweight Charts widget
@@ -57,6 +57,7 @@ Data flows through two separate paths:
    NEXT_PUBLIC_SUPABASE_ANON_KEY=
    SUPABASE_SERVICE_ROLE_KEY=
    FINNHUB_API_KEY=
+   FRED_API_KEY=
    GEMINI_API_KEY=
    NEXT_PUBLIC_VAPID_PUBLIC_KEY=
    VAPID_PRIVATE_KEY=

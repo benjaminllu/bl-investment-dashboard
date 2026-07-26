@@ -1,0 +1,143 @@
+# External Dependencies
+
+A working reference for every external service, API, and hosted tool this project talks to: what it's for, how it's wired in, what it costs, and what its limits are. Compiled by reading each integration's actual code (not just README's summary of it) and, where noted, by calling the live endpoint directly to confirm current behavior. Last reviewed: 2026-07-18.
+
+This is a personal project — no SLA is expected from any of the unauthenticated/unofficial sources below, and several are explicitly best-effort.
+
+## Quick reference
+
+| Service | Role | Auth | Key env var(s) | Rate limit | Cache/revalidate |
+|---|---|---|---|---|---|
+| [Vercel](#vercel) | App hosting | N/A (deploy-time) | — | Plan-dependent | — |
+| [GitHub Actions](#github-actions) | Background cron | N/A (repo secrets) | — | N/A | Cron requests 5 min; actual cadence ~hourly (GitHub throttling — see below) |
+| [Supabase](#supabase) | Database | Anon key (client), service role (scripts) | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Plan-dependent | Live queries, no app-level cache |
+| [Finnhub](#finnhub) | Quotes, news | API key (query param) | `FINNHUB_API_KEY` | 60 req/min (free tier) | 300s (index quotes), 900s (market news) |
+| [FRED](#fred-federal-reserve-economic-data) | Macro series | API key (query param) | `FRED_API_KEY` | ~120 req/min (commonly cited; not confirmed against FRED's own docs — see note) | 3600s |
+| [Treasury.gov](#treasurygov) | 2Y/10Y yields | None | — | Unpublished | 3600s |
+| [CNN Fear & Greed](#cnn-fear--greed-index-unofficial) | Sentiment index | None (requires User-Agent) | — | Unofficial, unpublished | 1800s |
+| [Cboe](#cboe-vix--vixeq) | VIX / VIXEQ | None (requires User-Agent) | — | Unpublished | 3600s |
+| [Google Gemini](#google-gemini) | AI summary | API key (query param) | `GEMINI_API_KEY` | Free-tier quota (model/tier-dependent) | 900s |
+| [Substack](#substack) | Research feed | None | — | Unpublished, per-publication | No cache (`no-store`) |
+| [TradingView](#tradingview) | Chart widget | None | — | N/A (client embed) | N/A |
+| [Twitter/X](#twitterx) | Timeline embed | None | — | N/A (client embed) | N/A |
+| [Web Push](#web-push--vapid) | Browser notifications | VAPID keypair | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` | Per-browser-vendor push service | N/A |
+| [IBKR Client Portal Gateway](#interactive-brokers-ibkr-client-portal-gateway) | Portfolio sync | Manual browser login + 2FA, local session | — | N/A (local, manual) | On-demand only |
+| [Google Fonts](#google-fonts) | IBM Plex Sans | None | — | N/A (build-time) | Self-hosted after build |
+
+---
+
+## Hosting & Infrastructure
+
+### Vercel
+The app deploys to Vercel (per `README.md`); there's no `vercel.json` in the repo, so it runs on Next.js zero-config defaults. Server Components, the FRED/notification API routes, and Next's `fetch`-level caching (the `revalidate` windows throughout this doc) all run inside Vercel's serverless/edge runtime. No project-specific config was found beyond that default.
+
+### GitHub Actions
+`.github/workflows/refresh-data.yml` runs `scripts/refresh-data.js` on a schedule and via manual `workflow_dispatch`. The committed cron is `*/5 * * * *` (every 5 minutes) — but **`README.md`'s "~hourly due to scheduler variance" description is the accurate one**, confirmed by pulling this workflow's actual run history from the GitHub API rather than trusting the YAML at face value: the 30 most recent runs landed 50–195 minutes apart, averaging roughly 80–90 minutes, never anywhere close to 5.
+
+This is a known, documented GitHub Actions limitation, not a bug in this project: scheduled workflows requesting a cadence tighter than about an hour get silently throttled by GitHub's own scheduler, especially on public repos and during high-load periods (the top of every hour is a documented hotspot). The practical takeaway is that `*/5 * * * *` in the YAML functions as "as often as GitHub will allow, capped around hourly" rather than a literal 5-minute guarantee — worth keeping the cron expression as-is (tightening it further won't help) and treating "~hourly, sometimes up to ~3 hours" as the real freshness bound on `stock_quotes`/`stock_news`.
+
+Secrets (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FINNHUB_API_KEY`) are injected from the repo's Actions secrets, not committed anywhere.
+
+GitHub automatically disables scheduled workflows in **public** repositories after 60 days with no new commits (private repos aren't affected). Worth checking this repo's visibility setting if the background refresh ever silently stops.
+
+### Supabase
+Hosted Postgres + client library (`@supabase/supabase-js`). Two clients exist, matching different trust levels:
+- `lib/supabase.ts` — anon key, used by the deployed app for all reads. Ships to the browser; treat it as public, same as any anon-key setup.
+- `lib/supabase-server.ts` and `scripts/*.js` — service role key (full read/write, bypasses Row Level Security), used only server-side/in scripts, never in client code.
+
+Tables: `stocks`, `stock_quotes`, `stock_news`, `posts`, `push_subscriptions`, `ibkr_positions` (see `README.md` for the per-table purpose). **RLS is not enabled on any table** — a known, tracked gap per `SECURITY.md`, reasonable for a single-user dashboard but worth revisiting if scope ever changes.
+
+---
+
+## Market & Macro Data
+
+### Finnhub
+Free-tier market data API, 60 requests/minute (per `README.md`; not independently re-verified here, carried forward from the existing doc). Three endpoints in use, all authenticated via a `token=` query param (`FINNHUB_API_KEY`):
+- `GET /api/v1/quote?symbol=X` — index prices in `MarketBanner.tsx` (7 indices + `ES1!` futures, revalidate 300s) and per-ticker quotes in the background job.
+- `GET /api/v1/news?category=general` — general market news (`lib/finnhubNews.ts`, revalidate 900s).
+- `GET /api/v1/company-news?symbol=X&from&to` — per-ticker news, background job only (`scripts/refresh-data.js`).
+
+**Operational note found while compiling this:** within a single run, the background job makes 2 Finnhub calls per ticker with a 1.1s sleep after each (48 calls / ~53s for 24 tickers, per `README.md`'s own math) — that's roughly **54 calls/minute during that run**, close to the 60/min ceiling regardless of how often the job itself fires. `README.md`'s "~136 tickers" capacity figure is about that per-run pace, not the cron cadence (see [GitHub Actions](#github-actions) — actual run spacing is closer to hourly, so back-to-back overlapping runs aren't a real risk in practice). Growing the watchlist meaningfully past the current ticker count is still worth re-checking against the 60/min ceiling within a single run.
+
+### FRED (Federal Reserve Economic Data)
+St. Louis Fed's API, `lib/fred.ts`, 20 macro series (`FRED_SERIES`) covering rates, inflation, credit spreads, Fed balance sheet, and similar, plus `lib/fedDotPlot.ts` for the FOMC's dot-plot series and `lib/keyDates.ts` for upcoming release dates. Key via `api_key=` query param (`FRED_API_KEY`) — **this env var is used in code but missing from `README.md`'s documented `.env.local` list** (see [Known documentation gaps](#known-documentation-gaps-found-while-writing-this)). Four entry points across two different FRED endpoints: `fetchFredMetrics()` and `fetchFredHistory()` hit `/fred/series/observations` (actual data values; the latter proxied through `app/api/fred/observations/route.ts` so the client-side chart never sees the API key); `fetchFedDotPlot()` also hits `/fred/series/observations` but for the dot-plot series specifically (see below); `fetchMacroKeyDates()` hits the separate `/fred/release/dates` endpoint, which returns *scheduled release dates* for a given release (CPI = release 10, Employment Situation = release 50, SEP = release 326) rather than data values — confirmed live to return real future dates, not just historical ones.
+
+**On "Next FOMC" specifically:** release 326 (SEP) only covers the 4 SEP-associated meetings per year, not all 8 — there's no free source (checked both FRED's own releases and Finnhub's economic calendar, which is `403 PremiumRequired` on this project's free-tier key) covering every meeting. `fetchMacroKeyDates()` deliberately surfaces only the SEP-tied next date, labeled as such in `MacroKeyBand.tsx` ("Next FOMC (SEP)"), rather than silently presenting partial coverage as complete.
+
+The dot-plot fetch is a genuinely different shape from the other two, worth understanding before touching it: `FEDTARMD`/`FEDTARRH`/`FEDTARRL` (median/range) are keyed by **target calendar year**, not release date — only the Fed's live projection window (current year + ~2 more) has real values, and years that roll out of that window come back as FRED's `.` null sentinel rather than disappearing. `fetchFedDotPlot()` derives which years are live by filtering to non-null values and taking the most recent few, rather than hardcoding year strings — so it shifts forward automatically whenever the Fed's window moves (e.g. 2026/2027/2028 → 2027/2028/2029), no code change needed. The `LR` (longer-run) variants — `FEDTARMDLR`/`FEDTARRHLR`/`FEDTARRLLR` — are keyed by actual SEP release date instead, behaving like a normal time series. Revalidate 3600s throughout.
+
+Rate limit: commonly cited as ~120 requests/minute per key across community sources and third-party wrapper docs, but FRED's own API-errors documentation page returned an HTTP 403 when fetched directly for this review — **not independently confirmed against the authoritative source**. Given 20 series fetched at most once per hour (via the revalidate window), actual usage is far below any plausible ceiling.
+
+### Treasury.gov
+Unauthenticated CSV feed (`home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/...`), parsed directly in `MarketBanner.tsx` for the 2Y/10Y yield + daily bps change shown in the sticky header. No key, no published rate limit. Revalidate 3600s. Same "public CSV, parse it yourself" shape as the two entries below.
+
+### CNN Fear & Greed Index (unofficial)
+`lib/fearGreed.ts` calls `production.dataviz.cnn.io/index/fearandgreed/graphdata` — CNN's own backend for their public [Fear & Greed page](https://www.cnn.com/markets/fear-and-greed), not a documented or contracted API. Confirmed directly (not from secondhand docs) by calling the endpoint and inspecting the live response: it returns a `fear_and_greed` current-value object plus 9 historical series (the 7 published components + 2 supplementary ones this app doesn't surface). Requires a browser-like `User-Agent` header and a `Referer` header or requests are rejected; no API key. Revalidate 1800s.
+
+**This is the least stable dependency in the project.** CNN can change the response shape or start blocking automated requests with no notice, since there's no contract. On failure the app degrades to `—` placeholders rather than crashing (see the empty-fallback pattern in `lib/fearGreed.ts`), but a silent schema change (rather than an outright failure) could produce wrong-looking numbers without an obvious error — worth a periodic manual spot-check against CNN's own page.
+
+### Cboe (VIX / VIXEQ)
+`lib/cboeVix.ts` pulls two plain CSVs from Cboe's CDN — `VIX_History.csv` (OHLC) and `VIXEQ_History.csv` (single close value) — confirmed live by fetching both directly. No key; requires a browser-like `User-Agent`. The Risk page's "VIXEQ − VIX" spread is computed client-side from same-day closes on both series, deliberately sourced from the same host to avoid a one-day mismatch that mixing in FRED's `VIXCLS` series could introduce. Revalidate 3600s.
+
+VIXEQ (Cboe S&P 500 Constituent Volatility Index) is a newer index (2024/2025 launch per Cboe's own announcement) measuring single-stock implied volatility across S&P 500 constituents, versus VIX's index-level measure — the spread is a dispersion/correlation signal. Same unofficial-endpoint caveat as CNN above: no contract, could change without notice.
+
+---
+
+## AI
+
+### Google Gemini
+`app/ai-summary/page.tsx` calls `generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` to write a one-paragraph analysis of the latest market headline. Key via `key=` query param (`GEMINI_API_KEY`). Free tier (per `README.md`); exact current quota not independently re-verified here since Gemini's free-tier limits are model- and account-tier-specific and change periodically — check Google AI Studio's own quota page if this starts failing. Cached via `unstable_cache` with a 900s revalidate, and **only successful generations are cached** — a failed request retries fresh on the next load rather than being stuck behind the cache window until it expires.
+
+---
+
+## Content
+
+### Substack
+`data/substacks.ts` lists 10 publications (mix of default `*.substack.com` subdomains and custom domains). `lib/substack.ts` hits each publication's own `/api/v1/posts?limit=5&sort=new` endpoint in parallel — this is Substack's standard per-publication JSON endpoint, not a shared platform API, so there's no single rate limit or key; each publication is its own host. Explicitly **not cached** (`cache: "no-store"`), unlike every other integration in this project — every page load re-fetches all 10 feeds live. Paid/subscriber-only posts are included only for publications marked `subscribed: true` in the config (currently one).
+
+---
+
+## Embedded Widgets
+
+These render entirely client-side via third-party script tags; the app never calls their backends directly.
+
+### TradingView
+`components/TickerChart.tsx` injects `s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js`, TradingView's free public embed widget, to render the interactive chart for whichever watchlist ticker is selected. No API key, no server-side involvement — purely a client-injected script + config object.
+
+### Twitter/X
+`components/ResearchFeed.tsx`'s "X / Twitter" tab loads `platform.twitter.com/widgets.js` and embeds a public timeline (`twitter-timeline`) for one hardcoded handle (`aleabitoreddit`). This is Twitter's public embed widget, not the Twitter API — no key, no rate limit exposed to this app, but also no server-side control over what renders (subject to whatever X's embed service decides to show or if they change/retire the widget).
+
+---
+
+## Notifications
+
+### Web Push / VAPID
+Browser-native Push API, server side via the `web-push` npm package (`lib/webpush.ts`), configured with a VAPID keypair (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL`). Subscriptions are stored in Supabase (`push_subscriptions` table) via `app/api/subscribe/route.ts`; `app/api/notify/route.ts` sends to all stored subscriptions. This isn't a single external service — `web-push` posts directly to whatever push endpoint each browser vendor's subscription object points at (e.g., Google's FCM for Chrome, Mozilla's push service for Firefox), transparently per-subscription. No app-level rate limit; whatever limits exist are on the vendor push-service side and aren't surfaced to this app.
+
+---
+
+## Brokerage
+
+### Interactive Brokers (IBKR) Client Portal Gateway
+Not an always-on hosted dependency — a gateway process downloaded directly from IBKR and run locally on demand (`https://localhost:5000`), per `README.md` and `SECURITY.md`. `scripts/sync-ibkr-positions.js` talks to it via the official Client Portal Web API (`/iserver/accounts`, `/portfolio/{accountId}/positions/0`). Requires manual browser login + 2FA each session (no automated login, by design — see `SECURITY.md`), and the gateway session times out after ~6 minutes of inactivity. TLS verification is bypassed only for this specific local, self-signed-cert connection, via a dedicated `https.Agent` — not a process-wide setting. No ongoing rate limit beyond "sync when you've traded."
+
+---
+
+## Fonts
+
+### Google Fonts
+IBM Plex Sans is loaded via `next/font/google` in `app/layout.tsx`. This is a build-time fetch — Next.js downloads and self-hosts the font files at build, so there's no runtime dependency on Google's font CDN in production; the only network dependency is at build/deploy time.
+
+---
+
+## Known documentation gaps found while writing this
+
+- ~~`FRED_API_KEY` missing from `README.md`'s `.env.local` variable list~~ — **fixed**: added to the setup snippet and the Tech Stack line in `README.md`.
+- ~~Cron schedule discrepancy between the YAML (`*/5 * * * *`) and README's "~hourly" description~~ — **not a gap after all**: verified against this workflow's actual run history via the GitHub API (30 most recent runs, spaced 50–195 min apart). README's "~hourly due to scheduler variance" is the accurate description; my first pass at this document was wrong to call it out as an inconsistency. See [GitHub Actions](#github-actions) for the corrected explanation and the known GitHub Actions behavior behind it.
+
+## What to re-check periodically
+
+- The two unofficial endpoints (CNN Fear & Greed, Cboe VIX/VIXEQ) have no contract and can change shape or start blocking without notice — spot-check their rendered values against CNN's and Cboe's own public pages occasionally.
+- Finnhub's free-tier rate limit and Gemini's free-tier quota are both the kind of thing providers change without much notice — re-verify against their current pricing/limits pages if either integration starts erroring.
+- If this repo is public on GitHub, the background refresh job is subject to GitHub's 60-day scheduled-workflow auto-disable; a stale `stock_quotes` table with no errors anywhere is the symptom to watch for.
+- The refresh job's real cadence (~hourly, occasionally up to ~3 hours) is set by GitHub's scheduler, not this project's cron expression — if data ever looks stale, check the [Actions run history](https://github.com/benjaminllu/bl-investment-dashboard/actions/workflows/refresh-data.yml) for actual gaps before assuming the job itself is broken.
