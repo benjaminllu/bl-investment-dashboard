@@ -6,6 +6,8 @@ export type Stock = {
   company: string;
   price: number;
   changePct: number;
+  changePct1M?: number | null;
+  changePctYTD?: number | null;
   priority: string;
   latest_update: string;
   updatedAt: string | null;
@@ -20,6 +22,17 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
+// Colored % cell, reused for 1D / 1M / YTD. Renders a muted em-dash until the
+// underlying metric is wired up (value null/undefined).
+function PctCell({ value }: { value: number | null | undefined }) {
+  if (value == null) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className={value >= 0 ? "text-accent" : "text-destructive"}>
+      {value.toFixed(2)}%
+    </span>
+  );
+}
+
 type StockTableProps = {
   stocks: Stock[];
   selected?: string | null;
@@ -28,16 +41,23 @@ type StockTableProps = {
 
 export default function StockTable({ stocks, selected, onSelect }: StockTableProps) {
   return (
-    <div className="overflow-hidden rounded-xl bg-card">
-      <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto rounded-xl bg-card">
+      {/* table-fixed + explicit column widths keep the layout identical across
+          watchlist tabs (baselined on the "Index" tab) instead of resizing to
+          each tab's content. The two unlabeled placeholder columns have no width
+          so they absorb the space gained from shrinking Company. */}
+      <table className="w-full table-fixed text-left text-sm">
         <thead className="bg-muted text-muted-foreground">
           <tr>
-            <th className="px-2 py-1.5">Ticker</th>
-            <th className="px-2 py-1.5">Company</th>
-            <th className="px-2 py-1.5">Price</th>
-            <th className="px-2 py-1.5">1D %</th>
-            <th className="px-2 py-1.5">Priority</th>
-            <th className="px-2 py-1.5">Latest Update</th>
+            <th className="w-16 px-2 py-1.5">Ticker</th>
+            <th className="w-40 px-2 py-1.5">Company</th>
+            <th className="w-24 px-2 py-1.5">Price</th>
+            <th className="w-20 px-2 py-1.5">1D %</th>
+            <th className="w-20 px-2 py-1.5">1M %</th>
+            <th className="w-20 px-2 py-1.5">YTD %</th>
+            <th className="px-2 py-1.5 text-muted-foreground/50">—</th>
+            <th className="px-2 py-1.5 text-muted-foreground/50">—</th>
+            <th className="w-28 px-2 py-1.5">Latest Update</th>
           </tr>
         </thead>
 
@@ -57,14 +77,21 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
                   {stock.ticker}
                 </button>
               </td>
-              <td className="px-2 py-1.5">{stock.company}</td>
+              <td className="truncate px-2 py-1.5" title={stock.company}>
+                {stock.company}
+              </td>
               <td className="px-2 py-1.5 tabular-nums">${stock.price.toFixed(2)}</td>
               <td className="px-2 py-1.5 tabular-nums">
-                <span className={stock.changePct >= 0 ? "text-accent" : "text-destructive"}>
-                  {stock.changePct.toFixed(2)}%
-                </span>
+                <PctCell value={stock.changePct} />
               </td>
-              <td className="px-2 py-1.5">{stock.priority}</td>
+              <td className="px-2 py-1.5 tabular-nums">
+                <PctCell value={stock.changePct1M} />
+              </td>
+              <td className="px-2 py-1.5 tabular-nums">
+                <PctCell value={stock.changePctYTD} />
+              </td>
+              <td className="px-2 py-1.5 text-muted-foreground/50">—</td>
+              <td className="px-2 py-1.5 text-muted-foreground/50">—</td>
               <td className="px-2 py-1.5 text-muted-foreground">{timeAgo(stock.updatedAt)}</td>
             </tr>
           ))}
