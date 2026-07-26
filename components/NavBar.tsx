@@ -9,7 +9,9 @@ const NAV_ITEMS = [
   { label: "Portfolio", href: "/portfolio" },
   { label: "Research", href: "/research" },
   { label: "AI Summary", href: "/ai-summary" },
-  { label: "Markets", href: "/markets" },
+  { label: "Macro", href: "/macro" },
+  { label: "Positioning", href: "/positioning" },
+  { label: "Risk", href: "/risk" },
   { label: "Analytics", href: "/analytics" },
 ];
 
