@@ -76,17 +76,20 @@ Data flows through two separate paths:
 | `stocks` | Watchlist tickers, company names, priority, list |
 | `stock_quotes` | Latest price and % change per ticker (written by background job) |
 | `stock_news` | Filtered news articles per ticker (written by background job) |
+| `stock_fundamentals` | Market cap and insider sentiment per ticker (written by the daily fundamentals job) — one row per ticker, overwritten, no history |
 | `posts` | Personal research notes |
 | `push_subscriptions` | Browser push notification subscriptions (in progress) |
 | `ibkr_positions` | Snapshot of IBKR positions as of the last manual sync (ticker, quantity, cost basis) — fully replaced on each sync, not appended |
 
-## Background Job
+## Background Jobs
 
-`scripts/refresh-data.js` runs via GitHub Actions on a cron schedule. Reads all tickers from `stocks`, fetches a quote and recent news for each from Finnhub (1.1s delay between calls to respect rate limits), upserts results to Supabase.
+Two GitHub Actions cron jobs, split by how fast the underlying data actually moves. Both read all tickers from `stocks`, sleep 1.1s between Finnhub calls to respect the 60 req/min limit, and upsert to Supabase. Both require the same three secrets: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FINNHUB_API_KEY`.
 
-At 24 tickers × 2 calls × 1.1s ≈ 53 seconds per run. Maximum capacity before hitting a 5-minute window: ~136 tickers.
+**`scripts/refresh-data.js` — every 30 min.** Quote + recent news per ticker. At 126 tickers × 2 calls × 1.1s ≈ 4.6 minutes per run.
 
-Requires three GitHub Actions secrets: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FINNHUB_API_KEY`.
+**`scripts/refresh-fundamentals.js` — daily.** Market cap (`/stock/profile2`) and insider sentiment (`/stock/insider-sentiment`) per ticker, written to `stock_fundamentals`. Same ≈ 4.6 minutes per run. This is deliberately *not* folded into the 30-minute job: insider sentiment is monthly data lagging 1-2 months, so re-fetching it every 30 minutes would double that job's runtime for data that cannot have changed. Requires `scripts/stock-fundamentals-table.sql` to have been run once first.
+
+Coverage for both fundamentals metrics is partial by nature — ETFs have no Finnhub profile, and insider sentiment comes from SEC Form 4 filings so foreign listings and some micro-caps return nothing. Missing values render as an em-dash rather than being hidden.
 
 ## Portfolio / IBKR Integration
 

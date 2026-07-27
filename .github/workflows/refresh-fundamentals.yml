@@ -1,0 +1,30 @@
+name: Refresh Fundamentals
+
+on:
+  schedule:
+    # Market cap and insider sentiment both move far slower than quotes —
+    # insider data is monthly and lags 1-2 months — so this runs daily instead
+    # of riding the 30-minute quote loop, which would double that job's runtime
+    # for data that cannot have changed.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run fundamentals refresh script
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: node scripts/refresh-fundamentals.js
