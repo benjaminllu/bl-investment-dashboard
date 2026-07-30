@@ -21,7 +21,10 @@
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\); console.log\\('valid JSON, entries:', JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\).permissions.allow.length\\)\")",
       "Bash(git check-ignore *)",
       "Bash(git fetch *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(node diagEarnings.cjs)",
+      "Bash(node scripts/refresh-fundamentals.js)",
+      "Bash(echo \"EXIT=$?\")"
     ]
   }
 }
