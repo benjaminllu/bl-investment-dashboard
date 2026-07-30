@@ -1,7 +1,27 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc --noEmit *)"
+      "Bash(npx tsc --noEmit *)",
+      "Bash(node -e ' *)",
+      "PowerShell(node --version; echo \"---\"; \\(Get-Content package.json | ConvertFrom-Json\\).devDependencies | ConvertTo-Json -Compress)",
+      "PowerShell(node \"C:\\\\Users\\\\benja\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-benja-Desktop-Coding-Projects-bl-investment-dashboard\\\\05f5e8ec-8e40-4ad7-bbd8-d17cc2d9cae6\\\\scratchpad\\\\risktest.cjs\")",
+      "Bash(node -e \"console.log\\(require\\('next/package.json'\\).version\\)\")",
+      "Bash(git log *)",
+      "Bash(node scripts/verifyRiskNarrative.ts)",
+      "Bash(node scripts/verifyRiskNarrative.js)",
+      "Bash(npx eslint *)",
+      "Bash(node .verify-out/scripts/verifyRiskNarrative.js)",
+      "Bash(npx next *)",
+      "Bash(node scanPerms.cjs)",
+      "Bash(node scanPerms2.cjs)",
+      "Bash(curl -s *)",
+      "Bash(curl -sf *)",
+      "PowerShell(git status *)",
+      "PowerShell(git log *)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\); console.log\\('valid JSON, entries:', JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\).permissions.allow.length\\)\")",
+      "Bash(git check-ignore *)",
+      "Bash(git fetch *)",
+      "Bash(git commit *)"
     ]
   }
 }
