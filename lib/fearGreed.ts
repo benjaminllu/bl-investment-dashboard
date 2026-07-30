@@ -1,3 +1,5 @@
+import type { SeriesPoint } from "@/lib/riskStats";
+
 export interface FearGreedComponent {
   id: string;
   label: string;
@@ -14,6 +16,12 @@ export interface FearGreedIndex {
   previous1Month: number | null;
   previous1Year: number | null;
   components: FearGreedComponent[];
+  /**
+   * Daily index history, ascending. CNN's graphdata payload carries roughly one
+   * trailing year (~251 points) — there is no longer series available here, so
+   * anything derived from this can only ever describe the past 12 months.
+   */
+  history: SeriesPoint[];
 }
 
 // CNN's own dataviz backend, undocumented and unofficial — no API key, but
@@ -44,7 +52,24 @@ const EMPTY: FearGreedIndex = {
   previous1Month: null,
   previous1Year: null,
   components: COMPONENT_KEYS.map(({ id, label }) => ({ id, label, score: null, rating: null })),
+  history: [],
 };
+
+// fear_and_greed_historical.data is [{ x: epoch ms, y: score, rating }, ...]
+// ascending. Confirmed by fetching the endpoint directly.
+function parseHistory(raw: unknown): SeriesPoint[] {
+  if (!Array.isArray(raw)) return [];
+  const points: SeriesPoint[] = [];
+  for (const item of raw) {
+    const x = item?.x;
+    const y = item?.y;
+    if (typeof x !== "number" || typeof y !== "number") continue;
+    const date = new Date(x).toISOString().slice(0, 10);
+    points.push({ date, value: y });
+  }
+  points.sort((a, b) => a.date.localeCompare(b.date));
+  return points;
+}
 
 export async function fetchFearGreedIndex(): Promise<FearGreedIndex> {
   try {
@@ -77,6 +102,7 @@ export async function fetchFearGreedIndex(): Promise<FearGreedIndex> {
         score: typeof data[id]?.score === "number" ? data[id].score : null,
         rating: data[id]?.rating ?? null,
       })),
+      history: parseHistory(data.fear_and_greed_historical?.data),
     };
   } catch (e) {
     console.error("[fearGreed] threw:", e);

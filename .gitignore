@@ -40,6 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# compiled output of scripts/verifyRiskNarrative.ts (see tsconfig.verify.json)
+/.verify-out/
+
 # python (skill scripts)
 __pycache__/
 *.pyc

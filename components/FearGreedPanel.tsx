@@ -1,4 +1,6 @@
 import type { FearGreedIndex } from "@/lib/fearGreed";
+import type { Interpretation } from "@/lib/riskNarrative";
+import MetricInterpretation from "@/components/MetricInterpretation";
 
 function ratingColor(rating: string | null): string {
   if (!rating) return "text-muted-foreground";
@@ -13,9 +15,11 @@ function formatScore(score: number | null): string {
 
 type Props = {
   data: FearGreedIndex;
+  interpretation?: Interpretation | null;
+  interpretationStats?: { label: string; value: string }[];
 };
 
-export default function FearGreedPanel({ data }: Props) {
+export default function FearGreedPanel({ data, interpretation, interpretationStats }: Props) {
   const historicals = [
     { label: "Prior Close", value: data.previousClose },
     { label: "1 Week Ago", value: data.previous1Week },
@@ -46,6 +50,10 @@ export default function FearGreedPanel({ data }: Props) {
           </div>
         ))}
       </div>
+
+      {/* Sits above the component list so entries that refer to the breakdown
+          "below" stay accurate. */}
+      <MetricInterpretation interpretation={interpretation ?? null} stats={interpretationStats} />
 
       <div className="mt-3 space-y-1.5 border-t border-border pt-3">
         {data.components.map((component) => (

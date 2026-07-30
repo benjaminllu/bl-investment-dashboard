@@ -1,0 +1,25 @@
+// Standalone compile for scripts/verifyRiskNarrative.ts, which cannot run under
+// Node's ESM resolver because the lib modules use extensionless relative
+// imports. Emits CommonJS so Node resolves them, using the project's own tsc so
+// no extra dependency is needed:
+//
+//   npx tsc -p tsconfig.verify.json && node .verify-out/scripts/verifyRiskNarrative.js
+//
+// The two `next.revalidate` overload errors this reports are expected — Next's
+// ambient fetch typing is not loaded outside the app build — and tsc emits
+// runnable output regardless. Use `npx tsc --noEmit` for the real typecheck.
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": ".verify-out",
+    "baseUrl": ".",
+    "paths": { "@/*": ["./*"] }
+  },
+  "files": ["scripts/verifyRiskNarrative.ts"]
+}

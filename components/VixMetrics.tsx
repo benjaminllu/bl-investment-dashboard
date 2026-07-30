@@ -1,4 +1,8 @@
 import type { VixSpreadData } from "@/lib/cboeVix";
+import type { Interpretation } from "@/lib/riskNarrative";
+import MetricInterpretation from "@/components/MetricInterpretation";
+
+type InterpretationStats = { label: string; value: string }[];
 
 function formatValue(value: number | null): string {
   return value === null ? "—" : value.toFixed(2);
@@ -28,7 +32,19 @@ function Delta({ value, previousValue }: { value: number | null; previousValue: 
   );
 }
 
-export default function VixMetrics({ data }: { data: VixSpreadData }) {
+export default function VixMetrics({
+  data,
+  vixInterpretation,
+  vixStats,
+  spreadInterpretation,
+  spreadStats,
+}: {
+  data: VixSpreadData;
+  vixInterpretation?: Interpretation | null;
+  vixStats?: InterpretationStats;
+  spreadInterpretation?: Interpretation | null;
+  spreadStats?: InterpretationStats;
+}) {
   return (
     <>
       <div className="rounded-xl bg-card p-4">
@@ -40,6 +56,8 @@ export default function VixMetrics({ data }: { data: VixSpreadData }) {
           <span className="text-muted-foreground">{formatDate(data.vix.date)}</span>
           <Delta value={data.vix.value} previousValue={data.vix.previousValue} />
         </div>
+
+        <MetricInterpretation interpretation={vixInterpretation ?? null} stats={vixStats} />
       </div>
 
       <div className="rounded-xl bg-card p-4">
@@ -62,6 +80,8 @@ export default function VixMetrics({ data }: { data: VixSpreadData }) {
             <span className="tabular-nums text-foreground">{formatValue(data.vix.value)}</span>
           </div>
         </div>
+
+        <MetricInterpretation interpretation={spreadInterpretation ?? null} stats={spreadStats} />
       </div>
     </>
   );
