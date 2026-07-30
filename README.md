@@ -77,6 +77,7 @@ Data flows through two separate paths:
 | `stock_quotes` | Latest price and % change per ticker (written by background job) |
 | `stock_news` | Filtered news articles per ticker (written by background job) |
 | `stock_fundamentals` | Market cap and insider sentiment per ticker (written by the daily fundamentals job) — one row per ticker, overwritten, no history |
+| `stock_earnings` | Upcoming earnings dates per ticker (written by the daily fundamentals job) — many rows per ticker, whole set replaced each run |
 | `posts` | Personal research notes |
 | `push_subscriptions` | Browser push notification subscriptions (in progress) |
 | `ibkr_positions` | Snapshot of IBKR positions as of the last manual sync (ticker, quantity, cost basis) — fully replaced on each sync, not appended |
@@ -87,7 +88,7 @@ Two GitHub Actions cron jobs, split by how fast the underlying data actually mov
 
 **`scripts/refresh-data.js` — every 30 min.** Quote + recent news per ticker. At 126 tickers × 2 calls × 1.1s ≈ 4.6 minutes per run.
 
-**`scripts/refresh-fundamentals.js` — daily.** Market cap (`/stock/profile2`) and insider sentiment (`/stock/insider-sentiment`) per ticker, written to `stock_fundamentals`. Same ≈ 4.6 minutes per run. This is deliberately *not* folded into the 30-minute job: insider sentiment is monthly data lagging 1-2 months, so re-fetching it every 30 minutes would double that job's runtime for data that cannot have changed. Requires `scripts/stock-fundamentals-table.sql` to have been run once first.
+**`scripts/refresh-fundamentals.js` — daily.** Market cap (`/stock/profile2`), insider sentiment (`/stock/insider-sentiment`), and upcoming earnings (`/calendar/earnings`) per ticker, written to `stock_fundamentals` and `stock_earnings`. At 126 tickers × 3 calls × 1.1s ≈ 6.9 minutes per run. This is deliberately *not* folded into the 30-minute job: insider sentiment is monthly data lagging 1-2 months and earnings dates move rarely, so re-fetching either every 30 minutes would triple that job's runtime for data that cannot have changed. Requires `scripts/stock-fundamentals-table.sql` and `scripts/stock-earnings-table.sql` to have been run once first.
 
 Coverage for both fundamentals metrics is partial by nature — ETFs have no Finnhub profile, and insider sentiment comes from SEC Form 4 filings so foreign listings and some micro-caps return nothing. Missing values render as an em-dash rather than being hidden.
 

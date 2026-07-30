@@ -15,6 +15,7 @@ export type Stock = {
   mspr?: number | null;
   msprYear?: number | null;
   msprMonth?: number | null;
+  nextEarnings?: string | null;
   priority: string;
   latest_update: string;
   updatedAt: string | null;
@@ -91,6 +92,26 @@ function MsprCell({
   );
 }
 
+// Compact by necessity — the w-24 column can't fit a full date plus a sort
+// arrow, so the year and session timing go in the tooltip.
+function EarningsCell({ date }: { date: string | null | undefined }) {
+  if (!date) return <span className="text-muted-foreground">—</span>;
+  // Date-only strings parse as UTC; format in UTC so the day doesn't shift.
+  const d = new Date(`${date}T00:00:00Z`);
+  return (
+    <span
+      title={d.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      })}
+    >
+      {d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+    </span>
+  );
+}
+
 type SortKey =
   | "ticker"
   | "company"
@@ -100,17 +121,23 @@ type SortKey =
   | "changePctYTD"
   | "marketCap"
   | "mspr"
+  | "nextEarnings"
   | "updatedAt";
 
 type SortDir = "asc" | "desc";
 type SortState = { key: SortKey; dir: SortDir } | null;
 
-// Text reads naturally A-Z; for any number the useful first look is
-// "biggest/best first", so numeric columns open descending.
-const TEXT_KEYS: ReadonlySet<SortKey> = new Set<SortKey>(["ticker", "company"]);
+// Text reads naturally A-Z, and for a forward-looking date the useful first look
+// is "soonest first" — descending would surface the furthest-out earnings. Every
+// other numeric column opens descending, where biggest/best first is what you want.
+const ASC_FIRST_KEYS: ReadonlySet<SortKey> = new Set<SortKey>([
+  "ticker",
+  "company",
+  "nextEarnings",
+]);
 
 function defaultDir(key: SortKey): SortDir {
-  return TEXT_KEYS.has(key) ? "asc" : "desc";
+  return ASC_FIRST_KEYS.has(key) ? "asc" : "desc";
 }
 
 function sortValue(stock: Stock, key: SortKey): string | number | null {
@@ -134,6 +161,9 @@ function sortValue(stock: Stock, key: SortKey): string | number | null {
       return stock.marketCapCurrency === "USD" ? stock.marketCap ?? null : null;
     case "mspr":
       return stock.mspr ?? null;
+    // Parsed to a timestamp rather than compared as a string, matching updatedAt.
+    case "nextEarnings":
+      return stock.nextEarnings ? new Date(`${stock.nextEarnings}T00:00:00Z`).getTime() : null;
     // Sort on the timestamp, not the "2h ago" string, which would order
     // alphabetically.
     case "updatedAt":
@@ -248,6 +278,7 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
             <SortHeader label="YTD %" sortKey="changePctYTD" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
             <SortHeader label="Mkt Cap" sortKey="marketCap" sort={sort} onSort={handleSort} className="w-24 px-2 py-1.5" />
             <SortHeader label="Insider" sortKey="mspr" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
+            <SortHeader label="Earnings" sortKey="nextEarnings" sort={sort} onSort={handleSort} className="w-24 px-2 py-1.5" />
             <SortHeader label="Updated" sortKey="updatedAt" sort={sort} onSort={handleSort} className="w-28 px-2 py-1.5" />
           </tr>
         </thead>
@@ -295,6 +326,9 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
               </td>
               <td className="px-2 py-1.5 tabular-nums">
                 <MsprCell value={stock.mspr} year={stock.msprYear} month={stock.msprMonth} />
+              </td>
+              <td className="px-2 py-1.5 tabular-nums">
+                <EarningsCell date={stock.nextEarnings} />
               </td>
               <td className="px-2 py-1.5 text-muted-foreground">{timeAgo(stock.updatedAt)}</td>
             </tr>

@@ -68,6 +68,22 @@ async function fetchInsiderSentiment(ticker, from, to) {
   };
 }
 
+// Always queried per symbol, never via the whole-market form of this endpoint:
+// that variant is capped at 1500 rows and truncates from the NEAR end with no
+// error, so the most imminent earnings are exactly the ones it drops.
+//
+// Finnhub often answers with a different listing than the one asked for
+// (BRK.B -> BRK.A, SKM -> 017670.KS), so the caller keys rows on the ticker it
+// requested and keeps row.symbol separately as source_symbol.
+async function fetchEarnings(ticker, from, to) {
+  const res = await fetch(
+    `https://finnhub.io/api/v1/calendar/earnings` +
+      `?from=${from}&to=${to}&symbol=${ticker}&token=${FINNHUB_KEY}`
+  );
+  const data = await res.json();
+  return Array.isArray(data?.earningsCalendar) ? data.earningsCalendar : [];
+}
+
 async function main() {
   const { data: stocks, error } = await supabase
     .from("stocks")
@@ -86,6 +102,13 @@ async function main() {
   fromDate.setMonth(fromDate.getMonth() - 13);
   const from = fromDate.toISOString().split("T")[0];
   const to = today.toISOString().split("T")[0];
+
+  // Forward window for earnings: 18 months comfortably covers the 4 scheduled
+  // quarters Finnhub returns, without relying on it to cap the result itself.
+  const earningsTo = new Date(today);
+  earningsTo.setMonth(earningsTo.getMonth() + 18);
+  const earningsFrom = today.toISOString().split("T")[0];
+  const earningsToStr = earningsTo.toISOString().split("T")[0];
 
   console.log(`Refreshing fundamentals for ${stocks.length} tickers...\n`);
 
@@ -109,6 +132,42 @@ async function main() {
       console.error(`  insider fetch error for ${ticker}:`, e.message);
     }
 
+    await sleep(RATE_LIMIT_DELAY);
+
+    // --- Earnings calendar (many rows per ticker) ---
+    // Replace this ticker's whole set rather than reconciling: scheduled dates
+    // shift and quarters roll off, so delete + insert is simpler and matches how
+    // stock_news is refreshed in refresh-data.js.
+    let earningsCount = 0;
+    try {
+      const rows = await fetchEarnings(ticker, earningsFrom, earningsToStr);
+
+      await supabase.from("stock_earnings").delete().eq("ticker", ticker);
+
+      if (rows.length > 0) {
+        const { error: eErr } = await supabase.from("stock_earnings").insert(
+          rows.map((r) => ({
+            // Keyed on the ticker we asked for, NOT r.symbol -- otherwise BRK.B's
+            // rows would be filed under BRK.A and never join back to the watchlist.
+            ticker,
+            source_symbol: r.symbol ?? null,
+            date: r.date,
+            hour: r.hour || null,
+            quarter: r.quarter ?? null,
+            year: r.year ?? null,
+            eps_estimate: typeof r.epsEstimate === "number" ? r.epsEstimate : null,
+            revenue_estimate:
+              typeof r.revenueEstimate === "number" ? r.revenueEstimate : null,
+            updated_at: new Date().toISOString(),
+          }))
+        );
+        if (eErr) console.error(`  earnings write error for ${ticker}: ${eErr.message}`);
+        else earningsCount = rows.length;
+      }
+    } catch (e) {
+      console.error(`  earnings fetch error for ${ticker}:`, e.message);
+    }
+
     // Write even when both are null, so a ticker that loses coverage gets its
     // stale row cleared instead of showing last week's number indefinitely.
     const { error: wErr } = await supabase.from("stock_fundamentals").upsert(
@@ -127,7 +186,8 @@ async function main() {
 
     await sleep(RATE_LIMIT_DELAY);
     console.log(
-      `✓ ${ticker}  mcap=${profile.marketCap ?? "—"} ${profile.currency ?? ""}  mspr=${insider.mspr ?? "—"}`
+      `✓ ${ticker}  mcap=${profile.marketCap ?? "—"} ${profile.currency ?? ""}` +
+        `  mspr=${insider.mspr ?? "—"}  earnings=${earningsCount}`
     );
   }
 

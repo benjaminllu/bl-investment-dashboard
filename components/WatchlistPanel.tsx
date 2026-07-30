@@ -3,14 +3,17 @@
 import { useState } from "react";
 import StockTable, { type Stock } from "./StockTable";
 import TickerChart from "./TickerChart";
+import EarningsPanel, { type EarningsRow } from "./EarningsPanel";
 import { CHART_PRESETS } from "@/lib/chartPresets";
 import { LIST_ORDER } from "@/data/watchlistOrder";
 
 interface Props {
   stocks: Stock[];
+  /** Preloaded for every ticker, so changing selection costs no network. */
+  earnings: Record<string, EarningsRow[]>;
 }
 
-export default function WatchlistPanel({ stocks }: Props) {
+export default function WatchlistPanel({ stocks, earnings }: Props) {
   const lists = [
     "All",
     ...Array.from(
@@ -68,6 +71,13 @@ export default function WatchlistPanel({ stocks }: Props) {
             symbol={selected}
             studies={preset.studies}
             studiesOverrides={preset.studiesOverrides}
+          />
+          <EarningsPanel
+            ticker={selected}
+            rows={earnings[selected] ?? []}
+            currency={
+              stocks.find((s) => s.ticker === selected)?.marketCapCurrency ?? null
+            }
           />
         </>
       )}
