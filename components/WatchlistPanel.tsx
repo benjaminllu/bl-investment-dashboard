@@ -11,9 +11,11 @@ interface Props {
   stocks: Stock[];
   /** Preloaded for every ticker, so changing selection costs no network. */
   earnings: Record<string, EarningsRow[]>;
+  /** True when the earnings query itself failed, as opposed to returning nothing. */
+  earningsUnavailable?: boolean;
 }
 
-export default function WatchlistPanel({ stocks, earnings }: Props) {
+export default function WatchlistPanel({ stocks, earnings, earningsUnavailable }: Props) {
   const lists = [
     "All",
     ...Array.from(
@@ -78,6 +80,7 @@ export default function WatchlistPanel({ stocks, earnings }: Props) {
             currency={
               stocks.find((s) => s.ticker === selected)?.marketCapCurrency ?? null
             }
+            unavailable={earningsUnavailable}
           />
         </>
       )}

@@ -10,7 +10,7 @@ export default async function Home() {
     { data: watchlist, error },
     { data: quotes },
     { data: fundamentals },
-    { data: earnings },
+    { data: earnings, error: earningsError },
   ] = await Promise.all([
     supabase.from("stocks").select("*").order("created_at", { ascending: true }),
     supabase.from("stock_quotes").select("ticker, price, change_pct, updated_at"),
@@ -53,6 +53,16 @@ export default async function Home() {
       },
     ])
   );
+
+  // A failed earnings query is NOT the same as a ticker having no earnings
+  // scheduled, and must not render as one: when the `stock_earnings` table was
+  // missing entirely, discarding this error made all 126 tickers read
+  // "No scheduled earnings" instead of surfacing the real fault.
+  if (earningsError) {
+    console.error(
+      `[home] stock_earnings query failed (${earningsError.code}): ${earningsError.message}`
+    );
+  }
 
   // Grouped into a plain object rather than a Map because this crosses the
   // server/client boundary into WatchlistPanel. The query is already ordered by
@@ -110,7 +120,11 @@ export default async function Home() {
       <div className="mx-auto max-w-screen-2xl p-4">
         <div className="flex flex-col gap-4 items-start lg:flex-row">
           <div className="min-w-0 w-full flex-1">
-            <WatchlistPanel stocks={stocks} earnings={earningsByTicker} />
+            <WatchlistPanel
+              stocks={stocks}
+              earnings={earningsByTicker}
+              earningsUnavailable={Boolean(earningsError)}
+            />
           </div>
           <div className="w-full shrink-0 lg:w-1/4">
             <ResearchFeed articles={articles} watchlistNews={watchlistNews} marketNews={marketNews} />

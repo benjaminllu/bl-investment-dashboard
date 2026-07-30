@@ -49,15 +49,19 @@ type Props = {
   rows: EarningsRow[];
   /** Listing currency from stock_fundamentals; gates the per-share figures. */
   currency: string | null;
+  /** The query failed, so emptiness here says nothing about the schedule. */
+  unavailable?: boolean;
 };
 
-export default function EarningsPanel({ ticker, rows, currency }: Props) {
+export default function EarningsPanel({ ticker, rows, currency, unavailable }: Props) {
   if (rows.length === 0) {
     return (
       <div className="rounded-xl bg-card p-4">
         <h2 className="text-sm font-medium text-foreground">Upcoming Earnings</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          No scheduled earnings for {ticker}.
+          {unavailable
+            ? "Earnings data is unavailable — the lookup failed, so this is not a statement about the schedule."
+            : `No scheduled earnings for ${ticker}.`}
         </p>
       </div>
     );
