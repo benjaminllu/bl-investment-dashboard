@@ -217,7 +217,7 @@ const specialEntries: NarrativeEntry<FearGreedContext>[] = [
       countRating(c.components, ["extreme greed"]) >= 3 &&
       countRating(c.components, ["extreme fear"]) >= 3,
     text: (c) =>
-      `The headline ${c.v.cur} hides a deep split: ${countRating(c.components, ["extreme greed"])} of CNN's seven inputs read extreme greed while ${countRating(c.components, ["extreme fear"])} read extreme fear. A composite built from inputs pointing this firmly in opposite directions is less informative than its single number suggests — the component breakdown below is doing more work than the total here.`,
+      `The headline ${c.v.cur} hides a deep split: ${countRating(c.components, ["extreme greed"])} of CNN's seven inputs read extreme greed while ${countRating(c.components, ["extreme fear"])} read extreme fear. A composite built from inputs pointing this firmly in opposite directions is less informative than its single number suggests — the component breakdown above is doing more work than the total here.`,
   },
   {
     // Both alignment entries require near-unanimity (6 of 7) and sit at a low
@@ -333,7 +333,7 @@ const specialEntries: NarrativeEntry<FearGreedContext>[] = [
     priority: 44,
     when: (c) => Math.abs(c.stats.zYear) < 0.05,
     text: (c) =>
-      `The index is sitting essentially on its own trailing-year average: ${c.v.cur} against ${c.v.yrMean} over the past 12 months. There is no positioning signal in the level at all, so the month's ${c.v.chg21} change and the component split below carry whatever information this reading has.`,
+      `The index is sitting essentially on its own trailing-year average: ${c.v.cur} against ${c.v.yrMean} over the past 12 months. There is no positioning signal in the level at all, so the month's ${c.v.chg21} change and the component split above carry whatever information this reading has.`,
   },
   {
     id: "fg-round-trip",

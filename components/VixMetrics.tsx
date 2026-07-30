@@ -47,7 +47,7 @@ export default function VixMetrics({
 }) {
   return (
     <>
-      <div className="rounded-xl bg-card p-4">
+      <div className="flex h-full flex-col rounded-xl bg-card p-4">
         <p className="text-sm font-medium text-muted-foreground">VIX</p>
         <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
           {formatValue(data.vix.value)}
@@ -60,7 +60,7 @@ export default function VixMetrics({
         <MetricInterpretation interpretation={vixInterpretation ?? null} stats={vixStats} />
       </div>
 
-      <div className="rounded-xl bg-card p-4">
+      <div className="flex h-full flex-col rounded-xl bg-card p-4">
         <p className="text-sm font-medium text-muted-foreground">VIXEQ − VIX</p>
         <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
           {data.spread === null ? "—" : `${data.spread >= 0 ? "+" : ""}${data.spread.toFixed(2)}`}

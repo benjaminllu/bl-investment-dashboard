@@ -28,7 +28,7 @@ export default function FearGreedPanel({ data, interpretation, interpretationSta
   ];
 
   return (
-    <div className="rounded-xl bg-card p-4">
+    <div className="flex h-full flex-col rounded-xl bg-card p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-foreground">Fear &amp; Greed Index</h2>
         {data.rating && (
@@ -51,10 +51,6 @@ export default function FearGreedPanel({ data, interpretation, interpretationSta
         ))}
       </div>
 
-      {/* Sits above the component list so entries that refer to the breakdown
-          "below" stay accurate. */}
-      <MetricInterpretation interpretation={interpretation ?? null} stats={interpretationStats} />
-
       <div className="mt-3 space-y-1.5 border-t border-border pt-3">
         {data.components.map((component) => (
           <div key={component.id} className="flex items-center justify-between gap-2">
@@ -65,6 +61,10 @@ export default function FearGreedPanel({ data, interpretation, interpretationSta
           </div>
         ))}
       </div>
+
+      {/* Last child, and bottom-pinned via mt-auto inside the flex column, so it
+          lines up with the bars on the sibling risk cards. */}
+      <MetricInterpretation interpretation={interpretation ?? null} stats={interpretationStats} />
     </div>
   );
 }
