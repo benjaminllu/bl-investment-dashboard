@@ -53,12 +53,20 @@ type Props = {
   unavailable?: boolean;
 };
 
+// Locked height, so selecting a different ticker never moves the content below
+// this panel. Row counts across the watchlist run 0-4 (Finnhub returns at most
+// four forward quarters, and ETFs return none), which previously made the panel
+// swing between a one-line message and a full table on nearly every click.
+// Sized to fit four rows plus the header; anything beyond that scrolls inside
+// rather than growing the card.
+const PANEL_HEIGHT = "h-[168px]";
+
 export default function EarningsPanel({ ticker, rows, currency, unavailable }: Props) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl bg-card p-4">
-        <h2 className="text-sm font-medium text-foreground">Upcoming Earnings</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+      <div className={`${PANEL_HEIGHT} flex flex-col rounded-xl bg-card p-3`}>
+        <h2 className="text-xs font-medium text-foreground">Upcoming Earnings</h2>
+        <p className="flex flex-1 items-center text-xs text-muted-foreground">
           {unavailable
             ? "Earnings data is unavailable — the lookup failed, so this is not a statement about the schedule."
             : `No scheduled earnings for ${ticker}.`}
@@ -71,18 +79,20 @@ export default function EarningsPanel({ ticker, rows, currency, unavailable }: P
   const nextDate = sorted.find((r) => daysUntil(r.date) >= 0)?.date;
 
   return (
-    <div className="rounded-xl bg-card p-4">
-      <h2 className="mb-2 text-sm font-medium text-foreground">Upcoming Earnings</h2>
+    <div className={`${PANEL_HEIGHT} flex flex-col rounded-xl bg-card p-3`}>
+      <h2 className="mb-1 text-xs font-medium text-foreground">Upcoming Earnings</h2>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+      {/* Scrolls in both axes inside the fixed height: cells never wrap, so a
+          narrow viewport scrolls sideways instead of growing the panel. */}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <table className="w-full text-left text-xs">
           <thead className="text-muted-foreground">
             <tr>
-              <th className="py-1 pr-3 font-medium">Date</th>
-              <th className="py-1 pr-3 font-medium">Quarter</th>
-              <th className="py-1 pr-3 font-medium">Timing</th>
-              <th className="py-1 pr-3 font-medium">EPS Est.</th>
-              <th className="py-1 font-medium">Revenue Est.</th>
+              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Date</th>
+              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Quarter</th>
+              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Timing</th>
+              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">EPS Est.</th>
+              <th className="py-0.5 font-medium whitespace-nowrap">Revenue Est.</th>
             </tr>
           </thead>
           <tbody>
@@ -103,7 +113,9 @@ export default function EarningsPanel({ ticker, rows, currency, unavailable }: P
                   key={`${row.date}-${row.quarter ?? "?"}`}
                   className={`border-t border-border ${isNext ? "text-foreground" : "text-muted-foreground"}`}
                 >
-                  <td className={`py-1.5 pr-3 tabular-nums ${isNext ? "font-semibold text-accent" : ""}`}>
+                  <td
+                    className={`whitespace-nowrap py-1 pr-3 tabular-nums ${isNext ? "font-semibold text-accent" : ""}`}
+                  >
                     {formatDate(row.date)}
                     {isNext && days >= 0 && (
                       <span className="ml-1 font-normal text-muted-foreground">
@@ -111,20 +123,20 @@ export default function EarningsPanel({ ticker, rows, currency, unavailable }: P
                       </span>
                     )}
                   </td>
-                  <td className="py-1.5 pr-3 tabular-nums">
+                  <td className="whitespace-nowrap py-1 pr-3 tabular-nums">
                     {row.quarter && row.year ? `Q${row.quarter} ${row.year}` : "—"}
                   </td>
-                  <td className="py-1.5 pr-3">
+                  <td className="whitespace-nowrap py-1 pr-3">
                     {row.hour && HOUR_LABEL[row.hour] ? HOUR_LABEL[row.hour] : "—"}
                   </td>
-                  <td className="py-1.5 pr-3 tabular-nums">
+                  <td className="whitespace-nowrap py-1 pr-3 tabular-nums">
                     {showEstimates && row.epsEstimate !== null ? (
                       `$${row.epsEstimate.toFixed(2)}`
                     ) : (
                       <span title={estimateWithheldReason(symbolMatches, currency, row.sourceSymbol)}>—</span>
                     )}
                   </td>
-                  <td className="py-1.5 tabular-nums">
+                  <td className="whitespace-nowrap py-1 tabular-nums">
                     {showEstimates && row.revenueEstimate !== null ? (
                       formatRevenue(row.revenueEstimate)
                     ) : (
