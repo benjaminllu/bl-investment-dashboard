@@ -3,7 +3,8 @@ import { fetchVixSpread } from "@/lib/cboeVix";
 import { computeSeriesStats, type SeriesStats } from "@/lib/riskStats";
 import { interpretFearGreed, interpretSpread, interpretVix, ordinal } from "@/lib/riskNarrative";
 import FearGreedPanel from "@/components/FearGreedPanel";
-import VixMetrics from "@/components/VixMetrics";
+import { VixCard, SpreadCard } from "@/components/VixMetrics";
+import MetricInterpretation from "@/components/MetricInterpretation";
 
 /**
  * The figures each interpretation is built from, surfaced under the paragraph so
@@ -66,20 +67,41 @@ export default async function RiskPage() {
           <p className="mt-1 text-sm text-muted-foreground">Volatility and risk indicators.</p>
         </div>
 
+        {/* Each column pairs a metric card with its own description block, so
+            the two stay together at every breakpoint. The metric card takes
+            flex-1 and grid rows stretch to equal height, which puts all three
+            fixed-height description blocks on a common line. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <FearGreedPanel
-            data={fearGreed}
-            interpretation={fearGreedInterpretation}
-            // CNN's payload is one trailing year, so there is no long-run column.
-            interpretationStats={interpretationStats(fearGreedStats, 0, false)}
-          />
-          <VixMetrics
-            data={vixSpread}
-            vixInterpretation={interpretVix(vixStats)}
-            vixStats={interpretationStats(vixStats, 2, true)}
-            spreadInterpretation={interpretSpread(spreadStats)}
-            spreadStats={interpretationStats(spreadStats, 2, true)}
-          />
+          <div className="flex flex-col gap-3">
+            <div className="flex-1">
+              <FearGreedPanel data={fearGreed} />
+            </div>
+            <MetricInterpretation
+              interpretation={fearGreedInterpretation}
+              // CNN's payload is one trailing year, so there is no long-run column.
+              stats={interpretationStats(fearGreedStats, 0, false)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex-1">
+              <VixCard data={vixSpread} />
+            </div>
+            <MetricInterpretation
+              interpretation={interpretVix(vixStats)}
+              stats={interpretationStats(vixStats, 2, true)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex-1">
+              <SpreadCard data={vixSpread} />
+            </div>
+            <MetricInterpretation
+              interpretation={interpretSpread(spreadStats)}
+              stats={interpretationStats(spreadStats, 2, true)}
+            />
+          </div>
         </div>
       </div>
     </main>

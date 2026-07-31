@@ -1,19 +1,27 @@
 import type { Interpretation } from "@/lib/riskNarrative";
 
 /**
- * The interpretation paragraph for a risk metric, rendered as a footer bar
- * flush with the bottom of its card.
+ * A metric's interpretation, as its own card sitting under the metric block.
  *
- * Two structural requirements, both of which the parent card has to cooperate
- * with: `mt-auto` needs the card to be `flex h-full flex-col` so the bar is
- * pushed to the bottom regardless of how much content sits above it, and the
- * negative margins assume the card's `p-4` padding so the bar can span the full
- * card width. Grid rows stretch their items to equal height, so with every card
- * built this way the bars line up along the bottom of the row.
+ * The height is fixed rather than content-driven: catalog entries differ in
+ * length, so letting these size themselves left the three blocks visibly
+ * mismatched. A constant height makes the row read as one band regardless of
+ * which entries happen to be selected today.
  *
- * `bg-muted` is the same recessed surface used for table headers and research
- * rows elsewhere in the app — flat, no ornamentation, per DESIGN.md.
+ * Text scrolls inside the card rather than being clipped, so an unusually long
+ * entry stays fully readable instead of being silently cut off.
+ *
+ * The height is set from the longest of the 160 catalog entries (312 chars),
+ * not from whichever entries happen to be showing — today's are near the
+ * 241-char median, so sizing to them would have clipped a third of the catalog
+ * on some future reading. Measured in the browser, that worst case needs 126px
+ * at 1440px wide and up, and 146px at 1280. 150px covers every three-column
+ * layout down to a 1280px viewport without ever scrolling; narrower than that
+ * the longest entries scroll, which is the intended fallback rather than
+ * making every block tall enough for a case that rarely renders.
  */
+const BLOCK_HEIGHT = "h-[150px]";
+
 export default function MetricInterpretation({
   interpretation,
   stats,
@@ -21,21 +29,27 @@ export default function MetricInterpretation({
   interpretation: Interpretation | null;
   stats?: { label: string; value: string }[];
 }) {
-  if (!interpretation) return null;
-
   return (
-    <div className="-mx-4 -mb-4 mt-auto rounded-b-xl border-t border-border bg-muted px-4 py-3">
-      <p className="text-xs leading-relaxed text-muted-foreground">{interpretation.text}</p>
+    <div className={`${BLOCK_HEIGHT} flex flex-col overflow-y-auto rounded-xl bg-card p-3`}>
+      {interpretation === null ? (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          No interpretation available — the underlying series could not be read.
+        </p>
+      ) : (
+        <>
+          <p className="text-xs leading-relaxed text-muted-foreground">{interpretation.text}</p>
 
-      {stats && stats.length > 0 && (
-        <dl className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-          {stats.map(({ label, value }) => (
-            <div key={label} className="flex items-baseline gap-1">
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-              <dd className="text-xs font-medium tabular-nums text-foreground">{value}</dd>
-            </div>
-          ))}
-        </dl>
+          {stats && stats.length > 0 && (
+            <dl className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+              {stats.map(({ label, value }) => (
+                <div key={label} className="flex items-baseline gap-1">
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+                  <dd className="text-xs font-medium tabular-nums text-foreground">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </>
       )}
     </div>
   );

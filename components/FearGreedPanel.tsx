@@ -1,6 +1,4 @@
 import type { FearGreedIndex } from "@/lib/fearGreed";
-import type { Interpretation } from "@/lib/riskNarrative";
-import MetricInterpretation from "@/components/MetricInterpretation";
 
 function ratingColor(rating: string | null): string {
   if (!rating) return "text-muted-foreground";
@@ -15,11 +13,9 @@ function formatScore(score: number | null): string {
 
 type Props = {
   data: FearGreedIndex;
-  interpretation?: Interpretation | null;
-  interpretationStats?: { label: string; value: string }[];
 };
 
-export default function FearGreedPanel({ data, interpretation, interpretationStats }: Props) {
+export default function FearGreedPanel({ data }: Props) {
   const historicals = [
     { label: "Prior Close", value: data.previousClose },
     { label: "1 Week Ago", value: data.previous1Week },
@@ -61,10 +57,6 @@ export default function FearGreedPanel({ data, interpretation, interpretationSta
           </div>
         ))}
       </div>
-
-      {/* Last child, and bottom-pinned via mt-auto inside the flex column, so it
-          lines up with the bars on the sibling risk cards. */}
-      <MetricInterpretation interpretation={interpretation ?? null} stats={interpretationStats} />
     </div>
   );
 }

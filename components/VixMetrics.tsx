@@ -1,8 +1,4 @@
 import type { VixSpreadData } from "@/lib/cboeVix";
-import type { Interpretation } from "@/lib/riskNarrative";
-import MetricInterpretation from "@/components/MetricInterpretation";
-
-type InterpretationStats = { label: string; value: string }[];
 
 function formatValue(value: number | null): string {
   return value === null ? "—" : value.toFixed(2);
@@ -32,57 +28,46 @@ function Delta({ value, previousValue }: { value: number | null; previousValue: 
   );
 }
 
-export default function VixMetrics({
-  data,
-  vixInterpretation,
-  vixStats,
-  spreadInterpretation,
-  spreadStats,
-}: {
-  data: VixSpreadData;
-  vixInterpretation?: Interpretation | null;
-  vixStats?: InterpretationStats;
-  spreadInterpretation?: Interpretation | null;
-  spreadStats?: InterpretationStats;
-}) {
+// Exported separately rather than as one fragment so the risk page can pair each
+// metric card with its own description block in a column.
+
+export function VixCard({ data }: { data: VixSpreadData }) {
   return (
-    <>
-      <div className="flex h-full flex-col rounded-xl bg-card p-4">
-        <p className="text-sm font-medium text-muted-foreground">VIX</p>
-        <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-          {formatValue(data.vix.value)}
-        </p>
-        <div className="mt-1 flex items-center justify-between text-xs tabular-nums">
-          <span className="text-muted-foreground">{formatDate(data.vix.date)}</span>
-          <Delta value={data.vix.value} previousValue={data.vix.previousValue} />
-        </div>
+    <div className="flex h-full flex-col rounded-xl bg-card p-4">
+      <p className="text-sm font-medium text-muted-foreground">VIX</p>
+      <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+        {formatValue(data.vix.value)}
+      </p>
+      <div className="mt-1 flex items-center justify-between text-xs tabular-nums">
+        <span className="text-muted-foreground">{formatDate(data.vix.date)}</span>
+        <Delta value={data.vix.value} previousValue={data.vix.previousValue} />
+      </div>
+    </div>
+  );
+}
 
-        <MetricInterpretation interpretation={vixInterpretation ?? null} stats={vixStats} />
+export function SpreadCard({ data }: { data: VixSpreadData }) {
+  return (
+    <div className="flex h-full flex-col rounded-xl bg-card p-4">
+      <p className="text-sm font-medium text-muted-foreground">VIXEQ − VIX</p>
+      <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+        {data.spread === null ? "—" : `${data.spread >= 0 ? "+" : ""}${data.spread.toFixed(2)}`}
+      </p>
+      <div className="mt-1 flex items-center justify-between text-xs tabular-nums">
+        <span className="text-muted-foreground">{formatDate(data.vixEq.date)}</span>
+        <Delta value={data.spread} previousValue={data.previousSpread} />
       </div>
 
-      <div className="flex h-full flex-col rounded-xl bg-card p-4">
-        <p className="text-sm font-medium text-muted-foreground">VIXEQ − VIX</p>
-        <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-          {data.spread === null ? "—" : `${data.spread >= 0 ? "+" : ""}${data.spread.toFixed(2)}`}
-        </p>
-        <div className="mt-1 flex items-center justify-between text-xs tabular-nums">
-          <span className="text-muted-foreground">{formatDate(data.vixEq.date)}</span>
-          <Delta value={data.spread} previousValue={data.previousSpread} />
+      <div className="mt-3 space-y-1 border-t border-border pt-2 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">VIXEQ</span>
+          <span className="tabular-nums text-foreground">{formatValue(data.vixEq.value)}</span>
         </div>
-
-        <div className="mt-3 space-y-1 border-t border-border pt-2 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">VIXEQ</span>
-            <span className="tabular-nums text-foreground">{formatValue(data.vixEq.value)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">VIX</span>
-            <span className="tabular-nums text-foreground">{formatValue(data.vix.value)}</span>
-          </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">VIX</span>
+          <span className="tabular-nums text-foreground">{formatValue(data.vix.value)}</span>
         </div>
-
-        <MetricInterpretation interpretation={spreadInterpretation ?? null} stats={spreadStats} />
       </div>
-    </>
+    </div>
   );
 }
