@@ -16,7 +16,7 @@ export default async function Home() {
     supabase.from("stock_quotes").select("ticker, price, change_pct, updated_at"),
     supabase
       .from("stock_fundamentals")
-      .select("ticker, market_cap, market_cap_currency, mspr, mspr_year, mspr_month"),
+      .select("ticker, market_cap, market_cap_currency, forward_pe, pe_ttm"),
     supabase
       .from("stock_earnings")
       .select("ticker, source_symbol, date, hour, quarter, year, eps_estimate, revenue_estimate")
@@ -47,9 +47,8 @@ export default async function Home() {
       {
         marketCap: f.market_cap ?? null,
         marketCapCurrency: f.market_cap_currency ?? null,
-        mspr: f.mspr ?? null,
-        msprYear: f.mspr_year ?? null,
-        msprMonth: f.mspr_month ?? null,
+        forwardPe: f.forward_pe ?? null,
+        peTtm: f.pe_ttm ?? null,
       },
     ])
   );
@@ -98,9 +97,8 @@ export default async function Home() {
     const fundamental = fundamentalsMap.get(stock.ticker) ?? {
       marketCap: null,
       marketCapCurrency: null,
-      mspr: null,
-      msprYear: null,
-      msprMonth: null,
+      forwardPe: null,
+      peTtm: null,
     };
     // Earliest date not already past. Rows are date-ordered from the query, so
     // the first match is the next one.

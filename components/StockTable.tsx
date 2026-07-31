@@ -12,9 +12,8 @@ export type Stock = {
   changePctYTD?: number | null;
   marketCap?: number | null;
   marketCapCurrency?: string | null;
-  mspr?: number | null;
-  msprYear?: number | null;
-  msprMonth?: number | null;
+  forwardPe?: number | null;
+  peTtm?: number | null;
   nextEarnings?: string | null;
   priority: string;
   latest_update: string;
@@ -41,11 +40,6 @@ function PctCell({ value }: { value: number | null | undefined }) {
   );
 }
 
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
 // Finnhub reports market cap in millions of the stock's *listing* currency, so
 // a KRW-listed name comes back as e.g. 21,002,317 (≈$15B). Rendering that with
 // a "$" would be off by orders of magnitude, so anything non-USD shows an
@@ -65,39 +59,44 @@ function MarketCapCell({
   return <>${Math.round(value)}M</>;
 }
 
-// MSPR (Monthly Share Purchase Ratio, -100..100) is monthly data that lags
-// 1-2 months, so the source month goes in a tooltip to make the staleness
-// discoverable rather than implied.
-function MsprCell({
-  value,
-  year,
-  month,
-}: {
-  value: number | null | undefined;
-  year: number | null | undefined;
-  month: number | null | undefined;
-}) {
-  if (value == null) return <span className="text-muted-foreground">—</span>;
-  const period =
-    year && month && month >= 1 && month <= 12
-      ? `${MONTHS[month - 1]} ${year}`
-      : undefined;
-  return (
-    <span
-      className={value >= 0 ? "text-accent" : "text-destructive"}
-      title={period ? `Insider sentiment for ${period}` : undefined}
-    >
-      {value.toFixed(0)}
-    </span>
-  );
+// Forward P/E preferred, trailing as the fallback. Forward is both the more
+// useful figure and the better-covered one on Finnhub's free tier, but the two
+// are not interchangeable, so a trailing value is rendered muted and says so in
+// its tooltip rather than passing silently as a forward number.
+//
+// Deliberately not colored by direction: unlike a percent change, a high or low
+// P/E is not good or bad on its own, so the emerald/red signal would be noise.
+// Negatives are suppressed — a P/E on negative earnings is not meaningful.
+// Trailing and forward each get their own column, so no value is ever shown
+// standing in for the other.
+//
+// An em-dash means the figure is genuinely absent — Finnhub returns neither P/E
+// for ETFs or for names with no expected earnings. Every finite number is
+// printed as-is, including 0.0 and negatives (a P/E on negative earnings), so a
+// real zero is never mistaken for missing data.
+//
+// Not colored by direction: unlike a percent change, a high or low P/E is not
+// good or bad on its own, so the emerald/red signal would be noise here.
+function PeCell({ value }: { value: number | null | undefined }) {
+  if (value == null || !Number.isFinite(value)) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  return <span className="text-foreground">{value.toFixed(1)}</span>;
 }
 
-// Compact by necessity — the w-24 column can't fit a full date plus a sort
-// arrow, so the year and session timing go in the tooltip.
+// Abbreviated year keeps the column narrow while still disambiguating dates
+// that are 12+ months out — the schedule runs to mid-2027, so "May 31" alone
+// was ambiguous against "May 26". Full date stays in the tooltip.
 function EarningsCell({ date }: { date: string | null | undefined }) {
   if (!date) return <span className="text-muted-foreground">—</span>;
   // Date-only strings parse as UTC; format in UTC so the day doesn't shift.
   const d = new Date(`${date}T00:00:00Z`);
+  const monthDay = d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  const yy = d.toLocaleDateString("en-US", { year: "2-digit", timeZone: "UTC" });
   return (
     <span
       title={d.toLocaleDateString("en-US", {
@@ -107,7 +106,8 @@ function EarningsCell({ date }: { date: string | null | undefined }) {
         timeZone: "UTC",
       })}
     >
-      {d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+      {/* Built as one expression so the apostrophe is data, not JSX text. */}
+      {`${monthDay} '${yy}`}
     </span>
   );
 }
@@ -120,7 +120,8 @@ type SortKey =
   | "changePct1M"
   | "changePctYTD"
   | "marketCap"
-  | "mspr"
+  | "peTtm"
+  | "forwardPe"
   | "nextEarnings"
   | "updatedAt";
 
@@ -159,8 +160,16 @@ function sortValue(stock: Stock, key: SortKey): string | number | null {
     // mega-cap, so anything non-USD sorts as missing — matching what's shown.
     case "marketCap":
       return stock.marketCapCurrency === "USD" ? stock.marketCap ?? null : null;
-    case "mspr":
-      return stock.mspr ?? null;
+    // Sorts on whichever figure the cell actually displays, so the ordering
+    // matches what is on screen. Non-positive values are excluded here for the
+    // same reason PeCell suppresses them: a P/E on negative earnings is not a
+    // meaningful number to rank by.
+    // Sorted on the raw figure. A zero is a real value and ranks as one; only a
+    // missing figure sorts as null, which compareStocks sinks to the bottom.
+    case "peTtm":
+      return stock.peTtm ?? null;
+    case "forwardPe":
+      return stock.forwardPe ?? null;
     // Parsed to a timestamp rather than compared as a string, matching updatedAt.
     case "nextEarnings":
       return stock.nextEarnings ? new Date(`${stock.nextEarnings}T00:00:00Z`).getTime() : null;
@@ -277,8 +286,9 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
             <SortHeader label="1M %" sortKey="changePct1M" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
             <SortHeader label="YTD %" sortKey="changePctYTD" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
             <SortHeader label="Mkt Cap" sortKey="marketCap" sort={sort} onSort={handleSort} className="w-24 px-2 py-1.5" />
-            <SortHeader label="Insider" sortKey="mspr" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
-            <SortHeader label="Earnings" sortKey="nextEarnings" sort={sort} onSort={handleSort} className="w-24 px-2 py-1.5" />
+            <SortHeader label="P/E TTM" sortKey="peTtm" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
+            <SortHeader label="P/E Fwd" sortKey="forwardPe" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
+            <SortHeader label="Earnings" sortKey="nextEarnings" sort={sort} onSort={handleSort} className="w-28 px-2 py-1.5" />
             <SortHeader label="Updated" sortKey="updatedAt" sort={sort} onSort={handleSort} className="w-28 px-2 py-1.5" />
           </tr>
         </thead>
@@ -325,7 +335,10 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
                 <MarketCapCell value={stock.marketCap} currency={stock.marketCapCurrency} />
               </td>
               <td className="px-2 py-1.5 tabular-nums">
-                <MsprCell value={stock.mspr} year={stock.msprYear} month={stock.msprMonth} />
+                <PeCell value={stock.peTtm} />
+              </td>
+              <td className="px-2 py-1.5 tabular-nums">
+                <PeCell value={stock.forwardPe} />
               </td>
               <td className="px-2 py-1.5 tabular-nums">
                 <EarningsCell date={stock.nextEarnings} />

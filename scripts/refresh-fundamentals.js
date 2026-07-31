@@ -46,26 +46,21 @@ async function fetchProfile(ticker) {
   };
 }
 
-// Insider sentiment is derived from SEC Form 4 filings, so it only exists for
-// US domestic filers — ETFs and foreign listings legitimately return nothing.
-// The series is monthly and lags 1-2 months; we keep the most recent month and
-// store which month it was so the UI can disclose the lag.
-async function fetchInsiderSentiment(ticker, from, to) {
+// /stock/metric is on the free tier (unlike /stock/eps-estimate and
+// /stock/price-target, which both 403), and returns forwardPE alongside the
+// trailing measures. Forward is what the table shows; peTTM is stored as a
+// fallback for the rare name that has one but no forward figure.
+//
+// Both are null for ETFs and for companies with no expected earnings, which is
+// correct rather than a failure — the UI renders those as an em-dash.
+async function fetchPeRatios(ticker) {
   const res = await fetch(
-    `https://finnhub.io/api/v1/stock/insider-sentiment` +
-      `?symbol=${ticker}&from=${from}&to=${to}&token=${FINNHUB_KEY}`
+    `https://finnhub.io/api/v1/stock/metric?symbol=${ticker}&metric=all&token=${FINNHUB_KEY}`
   );
   const data = await res.json();
-  const rows = data && Array.isArray(data.data) ? data.data : [];
-  if (rows.length === 0) return { mspr: null, year: null, month: null };
-
-  // The API returns oldest-first; the last entry is the most recent month.
-  const latest = rows[rows.length - 1];
-  return {
-    mspr: typeof latest.mspr === "number" ? latest.mspr : null,
-    year: latest.year ?? null,
-    month: latest.month ?? null,
-  };
+  const m = data && data.metric ? data.metric : {};
+  const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return { forwardPe: num(m.forwardPE), peTtm: num(m.peTTM) };
 }
 
 // Always queried per symbol, never via the whole-market form of this endpoint:
@@ -95,13 +90,7 @@ async function main() {
     process.exit(1);
   }
 
-  // 13 months back guarantees at least one full month of insider data even
-  // right after a year boundary, when a 12-month window could come up empty.
   const today = new Date();
-  const fromDate = new Date(today);
-  fromDate.setMonth(fromDate.getMonth() - 13);
-  const from = fromDate.toISOString().split("T")[0];
-  const to = today.toISOString().split("T")[0];
 
   // Forward window for earnings: 18 months comfortably covers the 4 scheduled
   // quarters Finnhub returns, without relying on it to cap the result itself.
@@ -114,7 +103,7 @@ async function main() {
 
   for (const { ticker } of stocks) {
     let profile = { marketCap: null, currency: null };
-    let insider = { mspr: null, year: null, month: null };
+    let pe = { forwardPe: null, peTtm: null };
 
     // --- Market cap ---
     try {
@@ -125,11 +114,11 @@ async function main() {
 
     await sleep(RATE_LIMIT_DELAY);
 
-    // --- Insider sentiment ---
+    // --- P/E ratios ---
     try {
-      insider = await fetchInsiderSentiment(ticker, from, to);
+      pe = await fetchPeRatios(ticker);
     } catch (e) {
-      console.error(`  insider fetch error for ${ticker}:`, e.message);
+      console.error(`  metric fetch error for ${ticker}:`, e.message);
     }
 
     await sleep(RATE_LIMIT_DELAY);
@@ -168,16 +157,19 @@ async function main() {
       console.error(`  earnings fetch error for ${ticker}:`, e.message);
     }
 
-    // Write even when both are null, so a ticker that loses coverage gets its
+    // Write even when all are null, so a ticker that loses coverage gets its
     // stale row cleared instead of showing last week's number indefinitely.
+    // The mspr columns are intentionally absent: nothing reads them since the
+    // watchlist's insider column was replaced by P/E, and omitting them from
+    // the upsert leaves the existing values untouched rather than destroying
+    // them, in case the metric is ever wanted back.
     const { error: wErr } = await supabase.from("stock_fundamentals").upsert(
       {
         ticker,
         market_cap: profile.marketCap,
         market_cap_currency: profile.currency,
-        mspr: insider.mspr,
-        mspr_year: insider.year,
-        mspr_month: insider.month,
+        forward_pe: pe.forwardPe,
+        pe_ttm: pe.peTtm,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "ticker" }
@@ -187,7 +179,8 @@ async function main() {
     await sleep(RATE_LIMIT_DELAY);
     console.log(
       `✓ ${ticker}  mcap=${profile.marketCap ?? "—"} ${profile.currency ?? ""}` +
-        `  mspr=${insider.mspr ?? "—"}  earnings=${earningsCount}`
+        `  fwdPE=${pe.forwardPe?.toFixed(1) ?? "—"}  ttmPE=${pe.peTtm?.toFixed(1) ?? "—"}` +
+        `  earnings=${earningsCount}`
     );
   }
 
