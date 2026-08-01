@@ -1,153 +1,149 @@
 import { supabase } from "@/lib/supabase";
+import PortfolioSection, {
+  CASH_TICKER,
+  isUsd,
+  money,
+  type EnrichedPosition,
+  type PortfolioPosition,
+} from "@/components/PortfolioSection";
 
-type Position = {
-  id: string;
-  conid: number;
-  ticker: string;
-  company: string | null;
-  quantity: number;
-  avg_cost: number | null;
-  currency: string | null;
-  synced_at: string;
+type Portfolio = {
+  slot: number;
+  label: string;
+  broker: string | null;
 };
 
-function formatSyncedAt(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
-}
+const SLOTS = [1, 2, 3, 4, 5];
 
 export default async function PortfolioPage() {
-  const { data: positions, error } = await supabase
-    .from("ibkr_positions")
-    .select("*")
-    .order("ticker", { ascending: true });
+  const [{ data: portfolios, error: portfoliosError }, { data: positions, error: positionsError }] =
+    await Promise.all([
+      supabase.from("portfolios").select("slot, label, broker").order("slot", { ascending: true }),
+      supabase
+        .from("portfolio_positions")
+        .select("slot, ticker, company, quantity, avg_cost, currency, account, imported_at")
+        .order("ticker", { ascending: true }),
+    ]);
 
-  const hasPositions = !error && positions && positions.length > 0;
+  // A failed query is not the same as an empty portfolio and must not render as
+  // one — if the tables have not been created yet, "no positions" would be a
+  // claim about holdings produced by a query that never ran.
+  const error = portfoliosError ?? positionsError;
+  if (error) {
+    console.error(`[portfolio] query failed (${error.code}): ${error.message}`);
+  }
 
-  let quoteMap = new Map<string, { price: number; changePct: number }>();
-  if (hasPositions) {
-    const tickers = positions.map((p) => p.ticker);
+  const rows = error ? [] : ((positions ?? []) as (PortfolioPosition & { slot: number })[]);
+
+  const quoteMap = new Map<string, number>();
+  if (rows.length > 0) {
     const { data: quotes } = await supabase
       .from("stock_quotes")
-      .select("ticker, price, change_pct")
-      .in("ticker", tickers);
-    quoteMap = new Map(
-      (quotes ?? []).map((q) => [q.ticker, { price: q.price ?? 0, changePct: q.change_pct ?? 0 }])
+      .select("ticker, price")
+      .in("ticker", [...new Set(rows.map((r) => r.ticker))]);
+    for (const q of quotes ?? []) {
+      if (typeof q.price === "number") quoteMap.set(q.ticker, q.price);
+    }
+  }
+
+  const bySlot = new Map<number, EnrichedPosition[]>();
+  for (const p of rows) {
+    const isCash = p.ticker === CASH_TICKER;
+    const usd = isUsd(p.currency);
+
+    // Cash counts toward Value but has no price and no unrealized P&L, so it is
+    // valued directly off the stored balance rather than through a quote
+    // lookup that would never match.
+    const price = isCash ? null : usd ? quoteMap.get(p.ticker) ?? null : null;
+    const marketValue = isCash ? p.quantity : price !== null ? price * p.quantity : null;
+    const costBasis = !isCash && usd && p.avg_cost !== null ? p.avg_cost * p.quantity : null;
+    const pnl =
+      isCash || marketValue === null || costBasis === null ? null : marketValue - costBasis;
+    const pnlPct = pnl !== null && costBasis ? (pnl / costBasis) * 100 : null;
+
+    const enriched: EnrichedPosition = { ...p, usd, isCash, price, marketValue, pnl, pnlPct };
+    bySlot.set(p.slot, [...(bySlot.get(p.slot) ?? []), enriched]);
+  }
+
+  // Cash sorts last. The query orders by ticker, and "$CASH" would otherwise
+  // lead every table since "$" sorts ahead of the letters.
+  for (const list of bySlot.values()) {
+    list.sort((a, b) =>
+      a.isCash === b.isCash ? a.ticker.localeCompare(b.ticker) : a.isCash ? 1 : -1
     );
   }
 
-  const rows = hasPositions
-    ? (positions as Position[]).map((p) => {
-        const quote = quoteMap.get(p.ticker);
-        const price = quote?.price ?? null;
-        const marketValue = price !== null ? price * p.quantity : null;
-        const costBasis = p.avg_cost !== null ? p.avg_cost * p.quantity : null;
-        const pnl = marketValue !== null && costBasis !== null ? marketValue - costBasis : null;
-        const pnlPct = pnl !== null && costBasis ? (pnl / costBasis) * 100 : null;
-        return { ...p, price, marketValue, pnl, pnlPct };
-      })
-    : [];
+  const labelBySlot = new Map<number, Portfolio>(
+    ((portfolios ?? []) as Portfolio[]).map((p) => [p.slot, p])
+  );
 
-  const totalValue = rows.reduce((sum, r) => sum + (r.marketValue ?? 0), 0);
-  const totalPnl = rows.reduce((sum, r) => sum + (r.pnl ?? 0), 0);
-  const syncedAt = rows[0]?.synced_at;
+  const allPositions = [...bySlot.values()].flat();
+  const combinedValue = allPositions.reduce((sum, p) => sum + (p.marketValue ?? 0), 0);
+  const combinedPnl = allPositions.reduce((sum, p) => sum + (p.pnl ?? 0), 0);
+  const filledSlots = SLOTS.filter((s) => (bySlot.get(s) ?? []).length > 0).length;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-screen-2xl p-4">
-        <div className="mb-4 flex items-baseline justify-between">
+        <div className="mb-4 flex items-baseline justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
-          {syncedAt && (
+          {filledSlots > 0 && (
             <p className="text-xs text-muted-foreground">
-              Synced {formatSyncedAt(syncedAt)} &middot; run{" "}
-              <code className="text-muted-foreground/80">node scripts/sync-ibkr-positions.js</code> to
-              refresh
+              {filledSlots} of {SLOTS.length} slots in use
             </p>
           )}
         </div>
 
-        {!hasPositions ? (
+        {error ? (
           <div className="rounded-xl bg-card p-4">
-            <p className="text-muted-foreground">
-              No positions to show. This is either because no sync has run yet, or the last sync
-              found zero open positions. To sync (or re-sync): start the IBKR Client Portal Gateway,
-              log in at <code className="text-muted-foreground/80">https://localhost:5000</code>,
-              then run{" "}
-              <code className="text-muted-foreground/80">node scripts/sync-ibkr-positions.js</code>.
+            <p className="text-sm text-muted-foreground">
+              Positions could not be loaded, so this is not a statement about what you hold. If the{" "}
+              <code className="text-muted-foreground/80">portfolios</code> and{" "}
+              <code className="text-muted-foreground/80">portfolio_positions</code> tables do not
+              exist yet, create them by running{" "}
+              <code className="text-muted-foreground/80">scripts/portfolio-positions-table.sql</code>{" "}
+              in the Supabase SQL editor. See{" "}
+              <code className="text-muted-foreground/80">PORTFOLIO.md</code> for the full import
+              instructions.
             </p>
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex gap-4">
-              <div className="rounded-xl bg-card px-4 py-2">
-                <p className="text-xs text-muted-foreground">Total Value</p>
-                <p className="text-lg font-semibold tabular-nums text-foreground">
-                  ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
+            {allPositions.length > 0 && (
+              <div className="flex flex-wrap gap-4">
+                <div className="rounded-xl bg-card px-4 py-2">
+                  <p className="text-xs text-muted-foreground">Combined Value</p>
+                  <p className="text-lg font-semibold tabular-nums text-foreground">
+                    ${money(combinedValue)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-card px-4 py-2">
+                  <p className="text-xs text-muted-foreground">Combined Unrealized P&amp;L</p>
+                  <p
+                    className={`text-lg font-semibold tabular-nums ${combinedPnl >= 0 ? "text-accent" : "text-destructive"}`}
+                  >
+                    {combinedPnl >= 0 ? "+" : "−"}${money(Math.abs(combinedPnl))}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-card px-4 py-2">
+                  <p className="text-xs text-muted-foreground">Positions</p>
+                  <p className="text-lg font-semibold tabular-nums text-foreground">
+                    {allPositions.length}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-xl bg-card px-4 py-2">
-                <p className="text-xs text-muted-foreground">Unrealized P&amp;L</p>
-                <p className={`text-lg font-semibold tabular-nums ${totalPnl >= 0 ? "text-accent" : "text-destructive"}`}>
-                  {totalPnl >= 0 ? "+" : ""}
-                  ${totalPnl.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-              </div>
-            </div>
+            )}
 
-            <div className="overflow-hidden rounded-xl bg-card">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-muted text-muted-foreground">
-                  <tr>
-                    <th className="px-2 py-1.5">Ticker</th>
-                    <th className="px-2 py-1.5">Quantity</th>
-                    <th className="px-2 py-1.5">Avg Cost</th>
-                    <th className="px-2 py-1.5">Price</th>
-                    <th className="px-2 py-1.5">Market Value</th>
-                    <th className="px-2 py-1.5">P&amp;L</th>
-                    <th className="px-2 py-1.5">P&amp;L %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.id} className="border-t border-border">
-                      <td className="px-2 py-1.5 font-semibold">{r.ticker}</td>
-                      <td className="px-2 py-1.5 tabular-nums">{r.quantity}</td>
-                      <td className="px-2 py-1.5 tabular-nums">
-                        {r.avg_cost !== null ? `$${r.avg_cost.toFixed(2)}` : "—"}
-                      </td>
-                      <td className="px-2 py-1.5 tabular-nums">{r.price !== null ? `$${r.price.toFixed(2)}` : "—"}</td>
-                      <td className="px-2 py-1.5 tabular-nums">
-                        {r.marketValue !== null ? `$${r.marketValue.toFixed(2)}` : "—"}
-                      </td>
-                      <td className="px-2 py-1.5 tabular-nums">
-                        {r.pnl !== null ? (
-                          <span className={r.pnl >= 0 ? "text-accent" : "text-destructive"}>
-                            {r.pnl >= 0 ? "+" : ""}${r.pnl.toFixed(2)}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-2 py-1.5 tabular-nums">
-                        {r.pnlPct !== null ? (
-                          <span className={r.pnlPct >= 0 ? "text-accent" : "text-destructive"}>
-                            {r.pnlPct >= 0 ? "+" : ""}
-                            {r.pnlPct.toFixed(2)}%
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {/* All five slots always render, so the layout is stable whether one
+                portfolio is loaded or five. */}
+            {SLOTS.map((slot) => (
+              <PortfolioSection
+                key={slot}
+                label={labelBySlot.get(slot)?.label ?? `Portfolio ${slot}`}
+                broker={labelBySlot.get(slot)?.broker ?? null}
+                positions={bySlot.get(slot) ?? []}
+              />
+            ))}
           </div>
         )}
       </div>

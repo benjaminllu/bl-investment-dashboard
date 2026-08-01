@@ -46,7 +46,7 @@ Hosted Postgres + client library (`@supabase/supabase-js`). Two clients exist, m
 - `lib/supabase.ts` — anon key, used by the deployed app for all reads. Ships to the browser; treat it as public, same as any anon-key setup.
 - `lib/supabase-server.ts` and `scripts/*.js` — service role key (full read/write, bypasses Row Level Security), used only server-side/in scripts, never in client code.
 
-Tables: `stocks`, `stock_quotes`, `stock_news`, `posts`, `push_subscriptions`, `ibkr_positions` (see `README.md` for the per-table purpose). **RLS is not enabled on any table** — a known, tracked gap per `SECURITY.md`, reasonable for a single-user dashboard but worth revisiting if scope ever changes.
+Tables: `stocks`, `stock_quotes`, `stock_news`, `stock_fundamentals`, `stock_earnings`, `posts`, `push_subscriptions`, `portfolios`, `portfolio_positions`, `ibkr_positions` (see `README.md` for the per-table purpose; `ibkr_positions` is retained but no longer read). **RLS is not enabled on any table** — a known, tracked gap per `SECURITY.md`, reasonable for a single-user dashboard but worth revisiting if scope ever changes.
 
 ---
 
@@ -149,7 +149,9 @@ Browser-native Push API, server side via the `web-push` npm package (`lib/webpus
 
 ## Brokerage
 
-### Interactive Brokers (IBKR) Client Portal Gateway
+### Interactive Brokers (IBKR) Client Portal Gateway — tabled
+**Currently unused.** The Portfolio tab now reads `portfolio_positions`, loaded by CSV import through the Supabase dashboard, so nothing in the app depends on this gateway. The entry below is kept because the integration and its security review are still accurate and worth not having to rediscover; treat it as documentation of a shelved path rather than a live dependency.
+
 Not an always-on hosted dependency — a gateway process downloaded directly from IBKR and run locally on demand (`https://localhost:5000`), per `README.md` and `SECURITY.md`. `scripts/sync-ibkr-positions.js` talks to it via the official Client Portal Web API (`/iserver/accounts`, `/portfolio/{accountId}/positions/0`). Requires manual browser login + 2FA each session (no automated login, by design — see `SECURITY.md`), and the gateway session times out after ~6 minutes of inactivity. TLS verification is bypassed only for this specific local, self-signed-cert connection, via a dedicated `https.Agent` — not a process-wide setting. No ongoing rate limit beyond "sync when you've traded."
 
 ---

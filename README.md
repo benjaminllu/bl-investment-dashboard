@@ -10,7 +10,7 @@ A personal investment research dashboard for tracking a stock watchlist, macro m
 - **Research Posts** — personal blog-style notes stored in Supabase, written directly via the Supabase dashboard
 - **AI Summary** — latest market news article with a one-paragraph analysis powered by Google Gemini, cached per-article so repeat views don't re-generate
 - **TradingView Chart** — embedded interactive chart for any selected watchlist ticker
-- **Portfolio** — live IBKR positions and P&L, synced on-demand from a locally-run IBKR Client Portal Gateway (see [Portfolio / IBKR Integration](#portfolio--ibkr-integration) below)
+- **Portfolio** — up to five portfolios with live P&L, loaded from broker CSV exports by a local import script (see [Portfolio (CSV import)](#portfolio-csv-import) below and [`PORTFOLIO.md`](PORTFOLIO.md)). The IBKR gateway sync it previously used is [tabled but still documented](#portfolio--ibkr-integration-tabled).
 
 ## Architecture
 
@@ -28,9 +28,9 @@ Data flows through two separate paths:
 - Market news → Finnhub general news endpoint
 - AI Summary → Google Gemini (on AI Summary page only; response cached ~15 min per article, so a repeated top headline doesn't re-generate)
 
-**On-demand sync (manual, a few times a day):**
-- Portfolio positions → IBKR Client Portal Web API, via a gateway run locally on demand (not always-on, not scheduled)
-- Portfolio P&L is computed by joining those synced positions against the already-live `stock_quotes` table, so prices stay current even though positions only refresh when you trigger a sync
+**On-demand (manual, whenever positions change):**
+- Portfolio positions → broker CSV export, parsed and written into `portfolio_positions` by `scripts/import-portfolio-csv.js` (the IBKR gateway sync that previously filled this is tabled — see below)
+- Portfolio P&L is computed by joining those imported positions against the already-live `stock_quotes` table, so prices stay current even though positions only refresh when you import
 
 ## Tech Stack
 
@@ -80,7 +80,9 @@ Data flows through two separate paths:
 | `stock_earnings` | Upcoming earnings dates per ticker (written by the daily fundamentals job) — many rows per ticker, whole set replaced each run |
 | `posts` | Personal research notes |
 | `push_subscriptions` | Browser push notification subscriptions (in progress) |
-| `ibkr_positions` | Snapshot of IBKR positions as of the last manual sync (ticker, quantity, cost basis) — fully replaced on each sync, not appended |
+| `portfolios` | The five Portfolio slots and their labels — `slot`, `label`, `broker` |
+| `portfolio_positions` | Positions per slot, keyed on `(slot, ticker)`, loaded by `scripts/import-portfolio-csv.js` |
+| `ibkr_positions` | Snapshot of IBKR positions as of the last manual sync — **no longer read by the app**, kept alongside the tabled IBKR integration |
 
 ## Background Jobs
 
@@ -92,9 +94,38 @@ Two GitHub Actions cron jobs, split by how fast the underlying data actually mov
 
 Coverage for both fundamentals metrics is partial by nature — ETFs have no Finnhub profile, and insider sentiment comes from SEC Form 4 filings so foreign listings and some micro-caps return nothing. Missing values render as an em-dash rather than being hidden.
 
-## Portfolio / IBKR Integration
+## Portfolio (CSV import)
 
-The Portfolio tab reads a snapshot of IBKR positions from Supabase rather than
+The Portfolio tab holds **up to five portfolios** in fixed slots, loaded from
+broker CSV exports. Full instructions, per-broker column mappings, and the
+caveats that affect the numbers are in **[`PORTFOLIO.md`](PORTFOLIO.md)**.
+
+```
+# one-time: run scripts/portfolio-positions-table.sql in the Supabase SQL editor
+node scripts/import-portfolio-csv.js "Roth Contributory IRA-Positions.csv" --slot=1 --dry-run
+node scripts/import-portfolio-csv.js "Roth Contributory IRA-Positions.csv" --slot=1
+```
+
+The import runs locally with the service role key, so the deployed app keeps
+its read-only posture: it uses only the public anon key, and RLS is not enabled
+on this project's tables (see `SECURITY.md`), so an in-app upload form would
+have been a public write endpoint without its own auth gate.
+
+Schwab is supported and verified against a real export; Vanguard is not yet, and
+the script rejects formats it does not recognise rather than guessing. P&L is
+computed live against `stock_quotes` by joining on `ticker`, so prices stay
+current between imports.
+
+## Portfolio / IBKR Integration (tabled)
+
+**Not currently wired to the Portfolio tab** — the tab reads
+`portfolio_positions` (above) instead. This section and its scripts
+(`scripts/sync-ibkr-positions.js`, `scripts/ibkr-positions-table.sql`) are kept
+intact and still accurate, so the integration can be picked back up without
+rediscovering any of it. The `ibkr_positions` table, if created, is simply no
+longer read.
+
+The Portfolio tab read a snapshot of IBKR positions from Supabase rather than
 calling IBKR live on every page load — see `SECURITY.md` for the full
 reasoning and the security review behind this design. One-time and per-sync
 setup:
@@ -118,8 +149,9 @@ setup:
    This fully replaces `ibkr_positions` (delete + insert) so closed positions
    disappear rather than lingering. Do this soon after logging in — the
    gateway session times out after ~6 minutes of inactivity.
-4. Reload `/portfolio` — positions come from the last sync, P&L is computed
-   live against `stock_quotes`.
+4. Reload `/portfolio` — positions came from the last sync, P&L computed live
+   against `stock_quotes`. (Step 4 no longer applies while this is tabled; the
+   page reads `portfolio_positions`.)
 
 No credentials are stored anywhere in this repo for this integration — login
 is manual, every time, by design (see `SECURITY.md`).

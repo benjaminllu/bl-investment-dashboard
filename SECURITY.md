@@ -18,9 +18,26 @@ reviewed: 2026-07-10.
   used in local/CI scripts (`scripts/*.js`). The deployed Next.js app itself
   uses only the public anon key (`lib/supabase.ts`).
 
-## IBKR Portfolio integration
+## Portfolio data entry
 
-The Portfolio tab syncs from Interactive Brokers via the official **Client
+The Portfolio tab is loaded by CSV import through the Supabase dashboard, into
+the `portfolio_positions` table. This was chosen over an in-app upload form
+specifically to preserve the read-only posture described above: the deployed
+app uses only the anon key, RLS is not enabled on this project's tables, and
+the site is publicly reachable — so a browser upload writing with the anon key
+would have been an unauthenticated write endpoint for anyone who found the URL.
+A server-side upload with the service-role key would have been safe from that
+particular problem but would still have needed its own auth gate, which this
+project does not otherwise have. Importing through the Supabase dashboard adds
+no new write path to the app at all.
+
+## IBKR Portfolio integration (tabled)
+
+**No longer wired to the Portfolio tab**, which now reads `portfolio_positions`
+instead. Kept because the review below remains accurate and applies again if
+the integration is picked back up.
+
+The Portfolio tab synced from Interactive Brokers via the official **Client
 Portal Web API**, run locally as a gateway process (downloaded directly from
 IBKR, not a third-party wrapper).
 
