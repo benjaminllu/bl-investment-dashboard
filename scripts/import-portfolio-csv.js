@@ -1,12 +1,19 @@
 // Import a broker positions CSV into a Portfolio slot.
 //
-//   node scripts/import-portfolio-csv.js <file.csv> --slot=1 [options]
+//   node scripts/import-portfolio-csv.js <file.csv> [--slot=1] [options]
 //
-//   --slot=N         Required. Which portfolio slot (1-5) to load into.
+//   --slot=N         Which portfolio slot (1-5) to load into. Optional when the
+//                    file's account is already loaded in exactly one slot —
+//                    that slot is then reused, so re-importing a statement
+//                    overrides it in place without having to remember where it
+//                    lives.
 //   --label="..."    Rename the slot. Defaults to the account name parsed out
 //                    of the file's preamble, when there is one.
 //   --broker=NAME    Override broker detection (currently: schwab).
 //   --dry-run        Parse and print, write nothing.
+//   --force          Allow loading an account into a slot when it is already
+//                    loaded in a different one. Off by default, because that
+//                    double-counts it in the combined total.
 //
 // A broker export is not a clean CSV: Schwab's has a preamble line above the
 // header, a blank line, "$1,234.56"-formatted money, a trailing comma on every
@@ -221,9 +228,10 @@ const PARSERS = [SCHWAB];
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { file: null, slot: null, label: null, broker: null, dryRun: false };
+  const args = { file: null, slot: null, label: null, broker: null, dryRun: false, force: false };
   for (const arg of argv) {
     if (arg === "--dry-run") args.dryRun = true;
+    else if (arg === "--force") args.force = true;
     else if (arg.startsWith("--slot=")) args.slot = Number(arg.slice(7));
     else if (arg.startsWith("--label=")) args.label = arg.slice(8);
     else if (arg.startsWith("--broker=")) args.broker = arg.slice(9).toLowerCase();
@@ -232,16 +240,39 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * Which slots already hold this account.
+ *
+ * An import always replaces the slot it is given, so re-importing the same
+ * account into the same slot is a clean override. The failure mode this guards
+ * is the *other* one: sending the same account to a different slot, which would
+ * leave it loaded twice and double-count it in the combined total, with nothing
+ * on the page to indicate it had happened.
+ */
+async function slotsHoldingAccount(supabase, account) {
+  if (!account) return [];
+  const { data, error } = await supabase
+    .from("portfolio_positions")
+    .select("slot, account")
+    .eq("account", account);
+  if (error) return [];
+  return [...new Set((data ?? []).map((r) => r.slot))].sort();
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
   if (!args.file) {
-    console.error("Usage: node scripts/import-portfolio-csv.js <file.csv> --slot=1 [--label=\"...\"] [--dry-run]");
-    process.exit(1);
+    console.error(
+      "Usage: node scripts/import-portfolio-csv.js <file.csv> [--slot=1] [--label=\"...\"] [--dry-run] [--force]"
+    );
+    process.exitCode = 1;
+    return;
   }
-  if (!Number.isInteger(args.slot) || args.slot < 1 || args.slot > 5) {
-    console.error(`--slot must be an integer 1-5 (got ${args.slot ?? "nothing"}).`);
-    process.exit(1);
+  if (args.slot !== null && (!Number.isInteger(args.slot) || args.slot < 1 || args.slot > 5)) {
+    console.error(`--slot must be an integer 1-5 (got ${args.slot}).`);
+    process.exitCode = 1;
+    return;
   }
 
   const text = fs.readFileSync(args.file, "utf8");
@@ -256,14 +287,65 @@ async function main() {
         ` Known formats: ${PARSERS.map((p) => p.name).join(", ")}.` +
         ` Force one with --broker=NAME.`
     );
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const { positions, skipped, account } = parser.parse(text);
 
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
+  // Resolve which slot to write to, using the account already on file when the
+  // caller did not say. This is what makes a repeat import of the same
+  // statement do the obvious thing instead of needing the slot remembered.
+  const existingSlots = await slotsHoldingAccount(supabase, account);
+  let slot = args.slot;
+
+  if (slot === null) {
+    if (existingSlots.length === 1) {
+      slot = existingSlots[0];
+      console.log(`Slot:    ${slot} (matched account already loaded there)`);
+    } else if (existingSlots.length === 0) {
+      console.error(
+        `No slot given and no existing slot holds "${account ?? "this account"}".` +
+          ` Pass --slot=N to choose one (1-5).`
+      );
+      process.exitCode = 1;
+    return;
+    } else {
+      console.error(
+        `Ambiguous: "${account}" is already loaded in slots ${existingSlots.join(" and ")}.` +
+          ` Pass --slot=N to say which to replace.`
+      );
+      process.exitCode = 1;
+    return;
+    }
+  }
+
+  // Re-importing into the slot that already holds this account is a normal
+  // override. Sending it to a *different* slot would load the same account
+  // twice and double-count it in the combined total.
+  const conflicts = existingSlots.filter((s) => s !== slot);
+  if (conflicts.length > 0 && !args.force) {
+    console.error(
+      `\n"${account}" is already loaded in slot ${conflicts.join(" and ")}, but --slot=${slot} was given.` +
+        `\nImporting would leave the same account in two slots and double-count it in the combined total.` +
+        `\n\nEither re-run with --slot=${conflicts[0]} to replace it in place, or pass --force if you` +
+        ` genuinely want it in both.`
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(`Format:  ${parser.name}`);
   if (account) console.log(`Account: ${account}`);
-  console.log(`Slot:    ${args.slot}`);
+  if (args.slot !== null) console.log(`Slot:    ${slot}`);
+  console.log(
+    `Action:  ${existingSlots.includes(slot) ? `replacing existing positions in slot ${slot}` : `filling empty slot ${slot}`}`
+  );
   console.log(`Parsed:  ${positions.length} positions, ${skipped.length} rows skipped\n`);
 
   for (const p of positions) {
@@ -280,7 +362,8 @@ async function main() {
 
   if (positions.length === 0) {
     console.error("\nNothing to import — no position rows were parsed.");
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   if (args.dryRun) {
@@ -288,20 +371,16 @@ async function main() {
     return;
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-
   const label = args.label ?? account ?? null;
   if (label) {
     const { error } = await supabase
       .from("portfolios")
       .update({ label, broker: parser.name, updated_at: new Date().toISOString() })
-      .eq("slot", args.slot);
+      .eq("slot", slot);
     if (error) {
       console.error(`\nFailed to update slot label: ${error.message}`);
-      process.exit(1);
+      process.exitCode = 1;
+    return;
     }
   }
 
@@ -310,15 +389,16 @@ async function main() {
   const { error: deleteError } = await supabase
     .from("portfolio_positions")
     .delete()
-    .eq("slot", args.slot);
+    .eq("slot", slot);
   if (deleteError) {
-    console.error(`\nFailed to clear slot ${args.slot}: ${deleteError.message}`);
-    process.exit(1);
+    console.error(`\nFailed to clear slot ${slot}: ${deleteError.message}`);
+    process.exitCode = 1;
+    return;
   }
 
   const { error: insertError } = await supabase.from("portfolio_positions").insert(
     positions.map((p) => ({
-      slot: args.slot,
+      slot,
       ticker: p.ticker,
       company: p.company,
       quantity: p.quantity,
@@ -330,13 +410,17 @@ async function main() {
   );
   if (insertError) {
     console.error(`\nWrite failed: ${insertError.message}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
-  console.log(`\nWrote ${positions.length} positions into slot ${args.slot}${label ? ` ("${label}")` : ""}.`);
+  console.log(`\nWrote ${positions.length} positions into slot ${slot}${label ? ` ("${label}")` : ""}.`);
 }
 
+// Sets exitCode rather than calling process.exit(), which tears the process
+// down while the Supabase client still has sockets closing — on Windows that
+// trips a libuv assertion and reports 127 instead of the intended 1.
 main().catch((e) => {
   console.error(e.message);
-  process.exit(1);
+  process.exitCode = 1;
 });

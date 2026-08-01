@@ -30,11 +30,24 @@ export function money(value: number): string {
 
 function formatImportedAt(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
+    year: "numeric",
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+/** "3 days ago" — the part that actually tells you whether a slot is stale. */
+function relativeAge(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days <= 0) {
+    const hours = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+    if (hours <= 0) return "just now";
+    return `${hours}h ago`;
+  }
+  if (days === 1) return "yesterday";
+  return `${days} days ago`;
 }
 
 // Quotes come from Finnhub in USD, so pricing a non-USD cost basis against them
@@ -75,7 +88,7 @@ export default function PortfolioSection({
       <section className="rounded-xl bg-card p-4">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-foreground">{label}</h2>
-          <span className="text-xs text-muted-foreground">Empty</span>
+          <span className="text-xs text-muted-foreground">Never imported</span>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           No positions imported into this slot yet. See PORTFOLIO.md for how to load a CSV.
@@ -116,8 +129,13 @@ export default function PortfolioSection({
               <Signed value={totalPnl} render={(v) => `$${money(v)}`} />
             </span>
           </span>
+          {/* Leads with the relative age, since "11 days ago" is what tells you
+              a slot is stale; the exact timestamp is the tooltip. */}
           {importedAt && (
-            <span className="text-muted-foreground">Imported {formatImportedAt(importedAt)}</span>
+            <span className="text-muted-foreground" title={formatImportedAt(importedAt)}>
+              Updated{" "}
+              <span className="font-semibold text-foreground">{relativeAge(importedAt)}</span>
+            </span>
           )}
         </div>
       </div>

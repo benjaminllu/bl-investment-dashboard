@@ -64,14 +64,41 @@ node scripts/import-portfolio-csv.js "Roth Contributory IRA-Positions-2026-07-29
 
 | Flag | |
 |---|---|
-| `--slot=N` | **Required.** Which portfolio slot (1–5) to load into |
+| `--slot=N` | Which portfolio slot (1–5) to load into. Optional once the account has been imported before — see below |
 | `--label="..."` | Rename the slot. Defaults to the account name read from the file's preamble |
 | `--broker=NAME` | Override format detection (currently only `schwab`) |
 | `--dry-run` | Parse and print what *would* be written, touching nothing |
+| `--force` | Allow an account into a slot when it is already loaded in a different one |
 
 The script replaces the slot's contents rather than appending, so **you do not
 need to clear the slot first** — the `delete from …` step above is only needed
 if you are importing through the Supabase dashboard by hand.
+
+### Re-importing the same account
+
+The script reads the account name out of the file and checks where it is already
+loaded, so a repeat import does the obvious thing:
+
+```
+$ node scripts/import-portfolio-csv.js schwab.csv        # no --slot needed
+Slot:    1 (matched account already loaded there)
+Action:  replacing existing positions in slot 1
+```
+
+The slot is wiped and rewritten, so sold positions disappear and nothing is
+double-counted. Behaviour in each case:
+
+| Situation | What happens |
+|---|---|
+| Account already in one slot, no `--slot` | That slot is reused and replaced |
+| Account already in one slot, same `--slot` | Replaced in place |
+| Account already in one slot, **different** `--slot` | **Refused** — it would load the account twice and double-count it in the combined total. Re-run against the original slot, or pass `--force` |
+| Account in two slots, no `--slot` | Refused as ambiguous; name the slot explicitly |
+| New account, no `--slot` | Refused — pass `--slot=N` to choose where it goes |
+
+Matching is on the account name from the file's preamble (e.g. `Roth
+Contributory IRA ...803`). A file with no recognisable account name always needs
+`--slot`.
 
 Always worth a `--dry-run` first:
 
