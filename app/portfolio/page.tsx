@@ -3,6 +3,7 @@ import PortfolioSection, {
   CASH_TICKER,
   isUsd,
   money,
+  usd,
   type EnrichedPosition,
   type PortfolioPosition,
 } from "@/components/PortfolioSection";
@@ -49,19 +50,29 @@ export default async function PortfolioPage() {
   const bySlot = new Map<number, EnrichedPosition[]>();
   for (const p of rows) {
     const isCash = p.ticker === CASH_TICKER;
-    const usd = isUsd(p.currency);
+    // Named to avoid shadowing the imported usd() currency formatter.
+    const inUsd = isUsd(p.currency);
 
     // Cash counts toward Value but has no price and no unrealized P&L, so it is
     // valued directly off the stored balance rather than through a quote
     // lookup that would never match.
-    const price = isCash ? null : usd ? quoteMap.get(p.ticker) ?? null : null;
+    const price = isCash ? null : inUsd ? quoteMap.get(p.ticker) ?? null : null;
     const marketValue = isCash ? p.quantity : price !== null ? price * p.quantity : null;
-    const costBasis = !isCash && usd && p.avg_cost !== null ? p.avg_cost * p.quantity : null;
+    const costBasis =
+      !isCash && inUsd && p.avg_cost !== null ? p.avg_cost * p.quantity : null;
     const pnl =
       isCash || marketValue === null || costBasis === null ? null : marketValue - costBasis;
     const pnlPct = pnl !== null && costBasis ? (pnl / costBasis) * 100 : null;
 
-    const enriched: EnrichedPosition = { ...p, usd, isCash, price, marketValue, pnl, pnlPct };
+    const enriched: EnrichedPosition = {
+      ...p,
+      usd: inUsd,
+      isCash,
+      price,
+      marketValue,
+      pnl,
+      pnlPct,
+    };
     bySlot.set(p.slot, [...(bySlot.get(p.slot) ?? []), enriched]);
   }
 
@@ -114,7 +125,7 @@ export default async function PortfolioPage() {
                 <div className="rounded-xl bg-card px-4 py-2">
                   <p className="text-xs text-muted-foreground">Combined Value</p>
                   <p className="text-lg font-semibold tabular-nums text-foreground">
-                    ${money(combinedValue)}
+                    {usd(combinedValue)}
                   </p>
                 </div>
                 <div className="rounded-xl bg-card px-4 py-2">

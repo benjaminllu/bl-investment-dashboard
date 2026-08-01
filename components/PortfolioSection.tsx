@@ -28,6 +28,15 @@ export function money(value: number): string {
   return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * Dollar amount with the sign outside the symbol: "−$2,937.48", not "$-2,937.48".
+ * Negative values are real here — a margin debit is stored as a negative cash
+ * balance, and it legitimately reduces a portfolio's value.
+ */
+export function usd(value: number): string {
+  return `${value < 0 ? "−" : ""}$${money(Math.abs(value))}`;
+}
+
 function formatImportedAt(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
     year: "numeric",
@@ -121,7 +130,7 @@ export default function PortfolioSection({
 
         <div className="flex items-baseline gap-4 text-xs tabular-nums">
           <span className="text-muted-foreground">
-            Value <span className="font-semibold text-foreground">${money(totalValue)}</span>
+            Value <span className="font-semibold text-foreground">{usd(totalValue)}</span>
           </span>
           <span className="text-muted-foreground">
             P&amp;L{" "}
@@ -189,7 +198,7 @@ export default function PortfolioSection({
                   {p.price !== null ? `$${p.price.toFixed(2)}` : <Dash />}
                 </td>
                 <td className="px-2 py-1.5 tabular-nums">
-                  {p.marketValue !== null ? `$${money(p.marketValue)}` : <Dash />}
+                  {p.marketValue !== null ? usd(p.marketValue) : <Dash />}
                 </td>
                 <td className="px-2 py-1.5 tabular-nums">
                   {p.pnl !== null ? <Signed value={p.pnl} render={(v) => `$${money(v)}`} /> : <Dash />}
