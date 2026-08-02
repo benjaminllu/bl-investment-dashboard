@@ -12,6 +12,10 @@ export type EnrichedPosition = PortfolioPosition & {
   usd: boolean;
   isCash: boolean;
   price: number | null;
+  /** When the quote behind `price` was last refreshed. */
+  priceUpdatedAt: string | null;
+  /** The quote is old enough that it should not be presented as live. */
+  priceStale: boolean;
   marketValue: number | null;
   pnl: number | null;
   pnlPct: number | null;
@@ -110,6 +114,7 @@ export default function PortfolioSection({
   const totalValue = valued.reduce((sum, p) => sum + (p.marketValue ?? 0), 0);
   const totalPnl = positions.reduce((sum, p) => sum + (p.pnl ?? 0), 0);
   const excluded = positions.length - valued.length;
+  const staleCount = positions.filter((p) => p.priceStale).length;
   const importedAt = positions.reduce<string | null>(
     (latest, p) => (latest === null || p.imported_at > latest ? p.imported_at : latest),
     null
@@ -158,6 +163,14 @@ export default function PortfolioSection({
         </p>
       )}
 
+      {staleCount > 0 && (
+        <p className="px-4 pb-2 text-xs text-warning">
+          {staleCount} position{staleCount === 1 ? " is" : "s are"} priced from a quote over a day
+          old (marked <span className="tabular-nums">*</span>). Value and P&amp;L for{" "}
+          {staleCount === 1 ? "it" : "them"} are stale.
+        </p>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-muted text-muted-foreground">
@@ -195,7 +208,20 @@ export default function PortfolioSection({
                   {!p.isCash && p.avg_cost !== null ? `$${p.avg_cost.toFixed(2)}` : <Dash />}
                 </td>
                 <td className="px-2 py-1.5 tabular-nums">
-                  {p.price !== null ? `$${p.price.toFixed(2)}` : <Dash />}
+                  {p.price === null ? (
+                    <Dash />
+                  ) : p.priceStale ? (
+                    // Warning colour, not the emerald/red used for direction —
+                    // this is about the price's trustworthiness, not its move.
+                    <span
+                      className="text-warning"
+                      title={`Stale price — last refreshed ${p.priceUpdatedAt ? formatImportedAt(p.priceUpdatedAt) : "unknown"}. Market value and P&L for this row are based on it.`}
+                    >
+                      ${p.price.toFixed(2)}*
+                    </span>
+                  ) : (
+                    `$${p.price.toFixed(2)}`
+                  )}
                 </td>
                 <td className="px-2 py-1.5 tabular-nums">
                   {p.marketValue !== null ? usd(p.marketValue) : <Dash />}

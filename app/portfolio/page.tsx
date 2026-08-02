@@ -16,6 +16,19 @@ type Portfolio = {
 
 const SLOTS = [1, 2, 3, 4, 5];
 
+/** Quotes older than this are flagged rather than shown as if they were live. */
+const STALE_PRICE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Kept out of the component body so the clock read is not an impure call during
+ * render — the same reason timeAgo/relativeAge are module-level helpers.
+ */
+function isPriceStale(updatedAt: string | null): boolean {
+  if (updatedAt === null) return false;
+  const ms = new Date(updatedAt).getTime();
+  return Number.isFinite(ms) && Date.now() - ms > STALE_PRICE_MS;
+}
+
 export default async function PortfolioPage() {
   const [{ data: portfolios, error: portfoliosError }, { data: positions, error: positionsError }] =
     await Promise.all([
@@ -36,14 +49,16 @@ export default async function PortfolioPage() {
 
   const rows = error ? [] : ((positions ?? []) as (PortfolioPosition & { slot: number })[]);
 
-  const quoteMap = new Map<string, number>();
+  const quoteMap = new Map<string, { price: number; updatedAt: string | null }>();
   if (rows.length > 0) {
     const { data: quotes } = await supabase
       .from("stock_quotes")
-      .select("ticker, price")
+      .select("ticker, price, updated_at")
       .in("ticker", [...new Set(rows.map((r) => r.ticker))]);
     for (const q of quotes ?? []) {
-      if (typeof q.price === "number") quoteMap.set(q.ticker, q.price);
+      if (typeof q.price === "number") {
+        quoteMap.set(q.ticker, { price: q.price, updatedAt: q.updated_at ?? null });
+      }
     }
   }
 
@@ -56,7 +71,8 @@ export default async function PortfolioPage() {
     // Cash counts toward Value but has no price and no unrealized P&L, so it is
     // valued directly off the stored balance rather than through a quote
     // lookup that would never match.
-    const price = isCash ? null : inUsd ? quoteMap.get(p.ticker) ?? null : null;
+    const quote = isCash || !inUsd ? null : quoteMap.get(p.ticker) ?? null;
+    const price = quote?.price ?? null;
     const marketValue = isCash ? p.quantity : price !== null ? price * p.quantity : null;
     const costBasis =
       !isCash && inUsd && p.avg_cost !== null ? p.avg_cost * p.quantity : null;
@@ -64,11 +80,19 @@ export default async function PortfolioPage() {
       isCash || marketValue === null || costBasis === null ? null : marketValue - costBasis;
     const pnlPct = pnl !== null && costBasis ? (pnl / costBasis) * 100 : null;
 
+    // A missing price announces itself as an em-dash; a frozen one does not, so
+    // it has to be called out. The refresh job runs roughly hourly (GitHub
+    // throttles the cron, sometimes to ~3 hours), so a full day of silence means
+    // something is actually wrong rather than merely late.
+    const priceStale = price !== null && isPriceStale(quote?.updatedAt ?? null);
+
     const enriched: EnrichedPosition = {
       ...p,
       usd: inUsd,
       isCash,
       price,
+      priceUpdatedAt: quote?.updatedAt ?? null,
+      priceStale,
       marketValue,
       pnl,
       pnlPct,
