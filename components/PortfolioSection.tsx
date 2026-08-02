@@ -172,23 +172,37 @@ export default function PortfolioSection({
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        {/* table-fixed + explicit column widths keep the layout identical across
+            the five slots instead of each table resizing to its own contents —
+            the same approach StockTable uses across watchlist tabs. Company is
+            the one column left without a width, so it absorbs the slack; it
+            truncates, so it is the safest place for the layout to flex. min-w
+            stops the numeric columns being squeezed on a narrow viewport — the
+            wrapper scrolls instead. */}
+        <table className="w-full min-w-230 table-fixed text-left text-sm">
           <thead className="bg-muted text-muted-foreground">
             <tr>
-              <th className="px-2 py-1.5">Ticker</th>
+              <th className="w-28 px-2 py-1.5">Ticker</th>
               <th className="px-2 py-1.5">Company</th>
-              <th className="px-2 py-1.5">Quantity</th>
-              <th className="px-2 py-1.5">Avg Cost</th>
-              <th className="px-2 py-1.5">Price</th>
-              <th className="px-2 py-1.5">Market Value</th>
-              <th className="px-2 py-1.5">P&amp;L</th>
-              <th className="px-2 py-1.5">P&amp;L %</th>
+              <th className="w-24 px-2 py-1.5">Quantity</th>
+              <th className="w-24 px-2 py-1.5">Avg Cost</th>
+              <th className="w-24 px-2 py-1.5">Price</th>
+              <th className="w-32 px-2 py-1.5">Market Value</th>
+              <th className="w-28 px-2 py-1.5">P&amp;L</th>
+              <th className="w-20 px-2 py-1.5">P&amp;L %</th>
             </tr>
           </thead>
           <tbody>
             {positions.map((p) => (
               <tr key={p.ticker} className="border-t border-border">
-                <td className="px-2 py-1.5 font-semibold">
+                {/* Option symbols ("DPRO 01/15/2027 10.00 C") are long enough to
+                    wrap onto three lines and wreck the row rhythm. Truncating
+                    loses nothing here: Company spells the position out in full
+                    on the same row, and the symbol is on the tooltip. */}
+                <td
+                  className="truncate px-2 py-1.5 font-semibold"
+                  title={p.isCash ? undefined : p.ticker}
+                >
                   {p.isCash ? "Cash" : p.ticker}
                   {!p.isCash && !p.usd && p.currency && (
                     <span
@@ -199,7 +213,14 @@ export default function PortfolioSection({
                     </span>
                   )}
                 </td>
-                <td className="px-2 py-1.5 text-muted-foreground">{p.company ?? <Dash />}</td>
+                {/* Truncates rather than wraps, so one long description cannot
+                    make its row taller than every other row on the page. */}
+                <td
+                  className="truncate px-2 py-1.5 text-muted-foreground"
+                  title={p.company ?? undefined}
+                >
+                  {p.company ?? <Dash />}
+                </td>
                 {/* Cash has a balance, not a share count or a per-share cost —
                     showing the dollar figure under "Quantity" would read as
                     4,522 shares. */}
