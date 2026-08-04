@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase";
 import PortfolioSection, {
   CASH_TICKER,
@@ -36,6 +37,10 @@ function historyStartDate(): string {
  * PostgREST caps a response at 1000 rows. Paging through explicitly rather than
  * taking the first page — a silently truncated series would still compute, just
  * on a fraction of the history, which is the worst kind of wrong.
+ *
+ * `volume` is deliberately not selected: the column is populated for a future
+ * days-to-liquidate metric, but nothing reads it yet and it is ~20% of the
+ * payload of the largest query on the page.
  */
 async function fetchPriceHistory(since: string): Promise<PriceRow[]> {
   const PAGE = 1000;
@@ -43,7 +48,7 @@ async function fetchPriceHistory(since: string): Promise<PriceRow[]> {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from("price_history")
-      .select("ticker, date, close, volume")
+      .select("ticker, date, close")
       .gte("date", since)
       .order("date", { ascending: true })
       .range(from, from + PAGE - 1);
@@ -55,6 +60,28 @@ async function fetchPriceHistory(since: string): Promise<PriceRow[]> {
     if (!data || data.length < PAGE) return out;
   }
 }
+
+/**
+ * Cached for an hour, because this is by far the heaviest read on the page:
+ * ~15,000 rows over 16 PostgREST round trips. The rest of the page revalidates
+ * every 5 minutes so quotes stay current, and a route-level `revalidate` cannot
+ * help here — Next takes the minimum of the segment config and any child fetch,
+ * and the market banner in the root layout fetches at 300s.
+ *
+ * Left uncached it would be ~5.9 GB/month of Supabase egress in the worst case,
+ * against a 5 GB free-tier ceiling, to re-read daily closes that change once a
+ * day.
+ *
+ * `unstable_cache` rather than the `use cache` directive that supersedes it in
+ * Next 16: `use cache` requires opting into Cache Components, which removes
+ * route-segment `revalidate` and changes the caching model for every other page
+ * in the project.
+ */
+const getCachedPriceHistory = unstable_cache(
+  async (since: string) => fetchPriceHistory(since),
+  ["portfolio-price-history"],
+  { revalidate: 3600 }
+);
 
 type Portfolio = {
   slot: number;
@@ -233,7 +260,7 @@ export default async function PortfolioPage() {
   const since = historyStartDate();
 
   const [priceRows, { data: rateRows }, { count: snapshotCount }] = await Promise.all([
-    allPositions.length > 0 ? fetchPriceHistory(since) : Promise.resolve([] as PriceRow[]),
+    allPositions.length > 0 ? getCachedPriceHistory(since) : Promise.resolve([] as PriceRow[]),
     supabase.from("risk_free_rates").select("date, annual_pct").gte("date", since),
     supabase.from("portfolio_snapshots").select("date", { count: "exact", head: true }),
   ]);
