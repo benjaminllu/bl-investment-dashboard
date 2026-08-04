@@ -5,8 +5,11 @@ portfolios** in fixed slots (1–5), so a Schwab brokerage account and a Vanguar
 IRA can sit side by side. Every slot always renders; an unfilled one shows a
 placeholder card, so adding or clearing a portfolio never shifts the others.
 
-Supported: **Schwab**, verified against a real export. Vanguard is not supported
-yet — see [Status](#status).
+Supported: **Schwab** and **Vanguard**, both verified against real exports.
+
+This file covers getting positions *in*. For what the **Exposure & Risk** panel
+above the tables computes from them — every formula, its coverage, and what it
+deliberately does not claim — see **[`METRICS.md`](METRICS.md)**.
 
 ## One-time setup
 
@@ -135,6 +138,53 @@ This keeps cash working without adding `is_cash`/`market_value` columns for one
 row per portfolio. If you would rather have explicit columns, that is a small
 migration and a few lines — say so.
 
+## Vanguard
+
+| Vanguard column | → | Notes |
+|---|---|---|
+| `Symbol` | `ticker` | Class shares normalised: `BRK B` → `BRK.B` |
+| `Investment Name` | `company` | |
+| `Shares` | `quantity` | Fractional shares preserved (`187.255`) |
+| `Average Cost Per Share` | `avg_cost` | Used directly when present |
+| `Total Cost` / `Cost Basis` | `avg_cost` | Fallback — divided by shares |
+| `Total Value` | `quantity` | Money-market row only, where it is the balance |
+| `Account Number` | `account` | Stored as `Vanguard <number>` |
+
+**Export the cost-basis view, not the plain holdings view.** Vanguard's default
+positions download has only Shares, Share Price and Total Value — no cost. Rows
+import fine without it, but `avg_cost` is null, so Avg Cost, P&L and P&L % are
+em-dashes for the whole slot, and the page's Combined P&L then covers only the
+portfolios that do have costs while the totals include this one. Use the
+unrealised gain/loss or cost-basis download instead.
+
+Three Vanguard-specific behaviours, all verified on a real export:
+
+- **`BRK B` → `BRK.B`.** Left alone this is worse than a wrong ticker: the space
+  makes `refresh-data.js` classify it as an option symbol and skip it, so the
+  position would silently never be priced.
+- **Money-market funds become cash.** `VMFXX` at a fixed $1 NAV is a settlement
+  sweep, not an exposure. Matched on the fund *name* containing "money market",
+  so it survives `VMFXX` → `VMRXX`. Carrying it as a holding would imply market
+  risk that does not exist *and* drop the balance out of Value, since no free
+  quote source prices it.
+- **Zero-share rows are skipped.** Vanguard keeps closed positions in the export
+  at 0 shares; they are history, not holdings.
+
+### Seeded prices
+
+After a Vanguard import the script writes the export's own share price into
+`stock_quotes` for any ticker with no quote row yet, and lists what it seeded.
+
+This exists for mutual funds. Finnhub prices no share class of one, so `VFIAX`
+would otherwise show an em-dash and drop out of Value — a six-figure hole
+explained by a footnote. Seeded, the position carries its value, and since
+nothing can refresh it the stale-price rule flags it with an asterisk within a
+day. **Visibly stale beats silently absent.**
+
+It only ever fills a gap: a ticker that already has a quote is left untouched,
+so a live watchlist price can never be overwritten with an export-date one.
+Anything the refresh job *can* quote gets overwritten on its next run.
+
 ## Caveats that affect the numbers
 
 - **Non-USD positions are excluded from Value and P&L.** Quotes come from
@@ -194,13 +244,13 @@ update portfolios set label = 'Schwab Brokerage', broker = 'schwab' where slot =
   basis derivation, cash, stored rows and rendered page.
 - ✅ Account-aware re-import: same account reuses its slot, a different slot is
   refused rather than double-counted.
-- ⏳ **Vanguard is not supported yet.** Running the script on a Vanguard file
-  fails format detection and exits rather than guessing. Its headers are
-  deliberately not written here until a real export is available — the exact
-  columns differ by which report is exported, and an invented mapping would
-  either fail outright or, worse, silently mis-map a cost basis. Adding it means
-  one more parser object in `scripts/import-portfolio-csv.js`; the tables, the
-  page and everything above already handle multiple brokers.
+- ✅ Vanguard import: symbol normalisation, money-market-as-cash, zero-share
+  skipping and seeded prices for unquotable funds.
+- ⏳ **Vanguard cost basis is untested.** The export used to build the parser had
+  no cost column, so the `Average Cost Per Share` and `Total Cost` mappings are
+  written from Vanguard's documented header names but have not been exercised
+  against a real file. Worth a `--dry-run` on the first cost-basis export to
+  confirm the numbers land where they should.
 - ⏳ Untested shapes: ETFs, fractional shares, options, short positions, and
   exports containing several accounts. Handled in principle, but no real file
   has exercised them.

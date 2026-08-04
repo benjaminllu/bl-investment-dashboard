@@ -82,7 +82,10 @@ function parseCsvLine(line) {
 function parseNumber(raw) {
   if (raw === undefined || raw === null) return null;
   const cleaned = String(raw).replace(/[$,%\s]/g, "").replace(/,/g, "").trim();
-  if (cleaned === "" || cleaned === "--" || cleaned === "N/A") return null;
+  // Vanguard writes " - " for an inapplicable gain/loss cell, which collapses to
+  // a bare "-" once whitespace is stripped. Number("-") is NaN, but relying on
+  // that would also swallow genuine malformed input silently.
+  if (cleaned === "" || cleaned === "--" || cleaned === "-" || cleaned === "N/A") return null;
   const value = Number(cleaned);
   return Number.isFinite(value) ? value : null;
 }
@@ -221,20 +224,193 @@ const SCHWAB = {
   },
 };
 
-const PARSERS = [SCHWAB];
+// ---------------------------------------------------------------------------
+// Vanguard
+// ---------------------------------------------------------------------------
+
+/**
+ * Vanguard writes class shares with a space where Finnhub expects a dot:
+ * "BRK B" rather than "BRK.B". Left alone this is worse than a missing price —
+ * the whitespace makes refresh-data.js classify it as an option symbol and skip
+ * it entirely, so the position would silently never be priced.
+ */
+function normalizeVanguardSymbol(symbol) {
+  const trimmed = symbol.trim().toUpperCase();
+  return /^[A-Z]+ [A-Z]$/.test(trimmed) ? trimmed.replace(" ", ".") : trimmed;
+}
+
+/**
+ * A settlement money-market fund is cash, not an exposure. Vanguard lists it as
+ * an ordinary holding (VMFXX, 110,748.8 "shares" at a fixed $1 NAV), but
+ * carrying it as a position would be wrong twice over: it implies market risk
+ * that does not exist, and no quote provider prices it, so the balance would
+ * drop out of the portfolio's Value altogether.
+ *
+ * Matched on the fund name rather than a ticker list so it survives VMFXX ->
+ * VMRXX and the equivalent at another broker.
+ */
+function isMoneyMarket(name) {
+  return /money market/i.test(name ?? "");
+}
+
+const VANGUARD = {
+  name: "vanguard",
+  // "Symbol/CUSIP" alongside "Cost basis method" is unique to the cost-basis
+  // download. Schwab has neither.
+  detect: (text) => /symbol\/cusip/i.test(text) && /cost basis method/i.test(text),
+
+  /**
+   * One row per TAX LOT, not per position: AAOI appears three times, VOO
+   * fifteen, VFIAX eighteen. Lots must be aggregated before writing, or the
+   * (slot, ticker) primary key collides and the insert fails outright.
+   *
+   * Aggregation is by summed dollars, never by averaging the per-lot "Cost per
+   * share" column — that would weight a 0.5-share dividend reinvestment equally
+   * with a 200-share purchase. Summing total cost and dividing by total shares
+   * gives the true weighted average, and reproduces Vanguard's own gain/loss
+   * figures exactly (checked below in the importer's own output).
+   */
+  parse(text) {
+    const lines = text.split(/\r?\n/);
+
+    const headerIndex = findHeaderIndex(lines, "symbol/cusip");
+    if (headerIndex === -1) {
+      throw new Error('Could not find a header row containing "Symbol/CUSIP".');
+    }
+
+    const header = parseCsvLine(lines[headerIndex]).map((h) => h.toLowerCase().trim());
+    const col = (predicate) => header.findIndex(predicate);
+
+    const idx = {
+      accountNumber: col((h) => h === "account" || h.includes("account number")),
+      symbol: col((h) => h.startsWith("symbol")),
+      description: col((h) => h === "description" || h.includes("investment name")),
+      quantity: col((h) => h === "quantity" || h === "shares"),
+      totalCost: col((h) => h === "total cost" || h === "cost basis"),
+      costPerShare: col((h) => h.includes("cost per share")),
+      // Header carries the as-of timestamp: "Market value as of 08/03/2026 ...".
+      marketValue: col((h) => h.startsWith("market value")),
+    };
+
+    if (idx.symbol === -1 || idx.quantity === -1) {
+      throw new Error(
+        `Required columns missing (symbol=${idx.symbol}, quantity=${idx.quantity}). Header was: ${header.join(" | ")}`
+      );
+    }
+
+    let account = null;
+    const bySymbol = new Map();
+    const skipped = [];
+
+    for (let i = headerIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+
+      const fields = parseCsvLine(line);
+      const rawSymbol = (fields[idx.symbol] ?? "").trim();
+      if (!rawSymbol) continue;
+
+      if (SKIP_SYMBOLS.has(rawSymbol.toLowerCase())) {
+        skipped.push({ symbol: rawSymbol, reason: "subtotal row" });
+        continue;
+      }
+
+      if (account === null && idx.accountNumber !== -1) {
+        const acct = (fields[idx.accountNumber] ?? "").trim();
+        if (acct) account = `Vanguard ${acct}`;
+      }
+
+      const quantity = parseNumber(fields[idx.quantity]);
+      if (quantity === null) {
+        skipped.push({ symbol: rawSymbol, reason: "no quantity" });
+        continue;
+      }
+      // Closed lots are history, not holdings.
+      if (quantity === 0) {
+        skipped.push({ symbol: rawSymbol, reason: "zero shares (closed lot)" });
+        continue;
+      }
+
+      const description =
+        idx.description === -1 ? null : (fields[idx.description] ?? "").trim() || null;
+
+      if (isMoneyMarket(description)) {
+        skipped.push({ symbol: rawSymbol, reason: "money market — import as cash via --cash" });
+        continue;
+      }
+
+      const ticker = normalizeVanguardSymbol(rawSymbol);
+      const totalCost = idx.totalCost === -1 ? null : parseNumber(fields[idx.totalCost]);
+      const perShare = idx.costPerShare === -1 ? null : parseNumber(fields[idx.costPerShare]);
+      const marketValue = idx.marketValue === -1 ? null : parseNumber(fields[idx.marketValue]);
+
+      // Fall back to reconstructing the lot's cost from its per-share figure
+      // when the total is absent, rather than dropping the lot's cost entirely
+      // and silently understating the position's basis.
+      const lotCost = totalCost ?? (perShare !== null ? perShare * quantity : null);
+
+      const existing = bySymbol.get(ticker);
+      if (existing) {
+        existing.quantity += quantity;
+        existing.totalCost = existing.totalCost === null || lotCost === null ? null : existing.totalCost + lotCost;
+        existing.marketValue =
+          existing.marketValue === null || marketValue === null
+            ? null
+            : existing.marketValue + marketValue;
+        existing.lots++;
+      } else {
+        bySymbol.set(ticker, {
+          ticker,
+          company: description,
+          quantity,
+          totalCost: lotCost,
+          marketValue,
+          lots: 1,
+          account,
+        });
+      }
+    }
+
+    const positions = [...bySymbol.values()].map((p) => ({
+      ticker: p.ticker,
+      company: p.company,
+      // Summing lots accumulates binary error: GDX's four lots come to
+      // 1500.9050000000002 rather than 1500.905. The page renders quantity
+      // verbatim, so this is a visible defect, not just an inelegant float.
+      // Vanguard reports 4 decimal places, so rounding at 6 cannot lose data.
+      quantity: Math.round(p.quantity * 1e6) / 1e6,
+      // Weighted average across lots, which is what the page multiplies back
+      // out by quantity.
+      avg_cost: p.totalCost !== null && p.quantity !== 0 ? p.totalCost / p.quantity : null,
+      currency: "USD",
+      account: p.account,
+      assetType: null,
+      lots: p.lots,
+      // Derived rather than read: this export has no price column, but market
+      // value over quantity is the same number. Used only for --seed-prices.
+      exportPrice:
+        p.marketValue !== null && p.quantity !== 0 ? p.marketValue / p.quantity : null,
+    }));
+
+    return { positions, skipped, account };
+  },
+};
+
+const PARSERS = [SCHWAB, VANGUARD];
 
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { file: null, slot: null, label: null, broker: null, dryRun: false, force: false };
+  const args = { file: null, slot: null, label: null, broker: null, dryRun: false, force: false, cash: null };
   for (const arg of argv) {
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--force") args.force = true;
     else if (arg.startsWith("--slot=")) args.slot = Number(arg.slice(7));
     else if (arg.startsWith("--label=")) args.label = arg.slice(8);
     else if (arg.startsWith("--broker=")) args.broker = arg.slice(9).toLowerCase();
+    else if (arg.startsWith("--cash=")) args.cash = Number(arg.slice(7).replace(/[$,]/g, ""));
     else if (!arg.startsWith("--")) args.file = arg;
   }
   return args;
@@ -292,6 +468,33 @@ async function main() {
   }
 
   const { positions, skipped, account } = parser.parse(text);
+
+  // Vanguard's cost-basis download omits the settlement money market entirely —
+  // it has no cost basis, so it is not a tax lot. Without this the balance
+  // simply vanishes from the portfolio's Value with nothing to indicate it ever
+  // existed, which is why the figure is supplied explicitly rather than
+  // inferred.
+  if (args.cash !== null) {
+    if (!Number.isFinite(args.cash)) {
+      console.error(`--cash must be a number (got "${args.cash}").`);
+      process.exitCode = 1;
+      return;
+    }
+    if (positions.some((p) => p.ticker === CASH_TICKER)) {
+      console.error("--cash was given but the file already contains a cash row; refusing to double-count.");
+      process.exitCode = 1;
+      return;
+    }
+    positions.push({
+      ticker: CASH_TICKER,
+      company: "Cash & settlement fund",
+      quantity: args.cash,
+      avg_cost: null,
+      currency: "USD",
+      account,
+      assetType: "cash",
+    });
+  }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -415,6 +618,70 @@ async function main() {
   }
 
   console.log(`\nWrote ${positions.length} positions into slot ${slot}${label ? ` ("${label}")` : ""}.`);
+
+  await seedMissingQuotes(supabase, positions);
+}
+
+/**
+ * Writes the export's own share price into stock_quotes for any holding that
+ * has no quote row yet.
+ *
+ * The case this exists for is a mutual fund: Finnhub prices no share class of
+ * one, so VFIAX would otherwise show an em-dash and drop out of the portfolio's
+ * Value entirely — a six-figure hole explained only by a footnote. Seeding lets
+ * the position carry its value, and because nothing can refresh it, the
+ * existing stale-price rule flags it with an asterisk within a day. Visibly
+ * stale beats silently absent.
+ *
+ * Only ever fills a gap: a ticker that already has a row is left alone, so a
+ * live watchlist quote can never be overwritten with an export-date price.
+ */
+async function seedMissingQuotes(supabase, positions) {
+  const candidates = positions.filter(
+    (p) => p.ticker !== CASH_TICKER && typeof p.exportPrice === "number" && p.exportPrice > 0
+  );
+  if (candidates.length === 0) return;
+
+  const tickers = [...new Set(candidates.map((p) => p.ticker))];
+  const { data: existing, error } = await supabase
+    .from("stock_quotes")
+    .select("ticker")
+    .in("ticker", tickers);
+
+  if (error) {
+    console.error(`  could not check existing quotes (${error.code}): ${error.message}`);
+    return;
+  }
+
+  const have = new Set((existing ?? []).map((q) => q.ticker));
+  const missing = candidates.filter((p) => !have.has(p.ticker));
+  if (missing.length === 0) return;
+
+  const { error: qErr } = await supabase.from("stock_quotes").upsert(
+    missing.map((p) => ({
+      ticker: p.ticker,
+      price: p.exportPrice,
+      change_pct: null,
+      updated_at: new Date().toISOString(),
+    })),
+    { onConflict: "ticker" }
+  );
+
+  if (qErr) {
+    console.error(`  quote seeding failed: ${qErr.message}`);
+    return;
+  }
+
+  console.log(
+    `Seeded ${missing.length} price(s) from the export for tickers with no quote yet:`
+  );
+  for (const p of missing) {
+    console.log(`  ${p.ticker.padEnd(8)} $${p.exportPrice.toFixed(2)}`);
+  }
+  console.log(
+    "  Anything the refresh job can quote will be overwritten on its next run;\n" +
+      "  anything it cannot will start showing the stale-price marker within a day."
+  );
 }
 
 // Sets exitCode rather than calling process.exit(), which tears the process

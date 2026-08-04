@@ -41,6 +41,15 @@ export function usd(value: number): string {
   return `${value < 0 ? "−" : ""}$${money(Math.abs(value))}`;
 }
 
+/**
+ * Share counts: thousands separated, fractions kept but never padded — "5,000"
+ * and "1,500.905", not "5000" and "1500.9050000000002". Aggregating tax lots
+ * accumulates binary error, and rendering the raw number puts it on screen.
+ */
+export function shares(quantity: number): string {
+  return quantity.toLocaleString("en-US", { maximumFractionDigits: 6 });
+}
+
 function formatImportedAt(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
     year: "numeric",
@@ -224,7 +233,9 @@ export default function PortfolioSection({
                 {/* Cash has a balance, not a share count or a per-share cost —
                     showing the dollar figure under "Quantity" would read as
                     4,522 shares. */}
-                <td className="px-2 py-1.5 tabular-nums">{p.isCash ? <Dash /> : p.quantity}</td>
+                <td className="px-2 py-1.5 tabular-nums">
+                  {p.isCash ? <Dash /> : shares(p.quantity)}
+                </td>
                 <td className="px-2 py-1.5 tabular-nums">
                   {!p.isCash && p.avg_cost !== null ? `$${p.avg_cost.toFixed(2)}` : <Dash />}
                 </td>
