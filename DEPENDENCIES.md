@@ -14,7 +14,7 @@ This is a personal project — no SLA is expected from any of the unauthenticate
 | [Finnhub](#finnhub) | Quotes, news | API key (query param) | `FINNHUB_API_KEY` | 60 req/min (free tier) | 300s (index quotes), 900s (market news) |
 | [FRED](#fred-federal-reserve-economic-data) | Macro series | API key (query param) | `FRED_API_KEY` | ~120 req/min (commonly cited; not confirmed against FRED's own docs — see note) | 3600s |
 | [Treasury.gov](#treasurygov) | 2Y/10Y yields | None | — | Unpublished | 3600s |
-| [Yahoo Finance](#yahoo-finance-unofficial) | S&P 500 futures (ES) | None (requires User-Agent) | — | Unofficial, unpublished | 300s |
+| [Yahoo Finance](#yahoo-finance-unofficial) | S&P 500 futures (ES), daily price history | None (requires User-Agent) | — | Unofficial, unpublished | 300s (banner); batch script for history |
 | [CNN Fear & Greed](#cnn-fear--greed-index-unofficial) | Sentiment index | None (requires User-Agent) | — | Unofficial, unpublished | 1800s |
 | [Cboe](#cboe-vix--vixeq) | VIX / VIXEQ | None (requires User-Agent) | — | Unpublished | 3600s |
 | [Google Gemini](#google-gemini) | AI summary | API key (query param) | `GEMINI_API_KEY` | Free-tier quota (model/tier-dependent) | 900s |
@@ -57,9 +57,13 @@ Free-tier market data API, 60 requests/minute (per `README.md`; not independentl
 - `GET /api/v1/quote?symbol=X` — index prices in `MarketBanner.tsx` (7 index ETFs, revalidate 300s) and per-ticker quotes in the background job.
 - `GET /api/v1/news?category=general` — general market news (`lib/finnhubNews.ts`, revalidate 900s).
 - `GET /api/v1/company-news?symbol=X&from&to` — per-ticker news, background job only (`scripts/refresh-data.js`).
-- `GET /api/v1/stock/profile2?symbol=X` — market cap, daily fundamentals job only (`scripts/refresh-fundamentals.js`).
-- `GET /api/v1/stock/insider-sentiment?symbol=X&from&to` — insider MSPR, same job.
+- `GET /api/v1/stock/profile2?symbol=X` — market cap, listing currency and `finnhubIndustry` (stored as `sector`), daily fundamentals job only (`scripts/refresh-fundamentals.js`).
+- `GET /api/v1/stock/metric?symbol=X&metric=all` — 132 fields, of which seven are stored: `forwardPE`, `peTTM`, `beta`, `pbAnnual`, `3MonthADReturnStd`, `52WeekPriceReturnDaily`, `roeTTM`. Same job.
 - `GET /api/v1/calendar/earnings?symbol=X&from&to` — upcoming earnings dates, same job.
+
+*(This list previously named `/stock/insider-sentiment`, which `refresh-fundamentals.js` stopped calling when the watchlist's insider column was replaced by P/E, and omitted `/stock/metric`, which had replaced it.)*
+
+**The exposure characteristics cost no extra requests.** Everything the Portfolio tab's exposure panel aggregates already arrived in the `profile2` and `metric` responses the daily job was making and discarding, so `stock-fundamentals-add-exposure.sql` widened the table without widening the request budget. Coverage measured against the real 34-holding book, weighted by market value: sector and beta 99.1%, volatility 95.9%, ROE 89.6%, 52-week return 88.7%, price-to-book 69.7%. Price-to-book is the weak one and it is the sole input to the value/growth axis, which is why that chart carries an explicit `Unclassified` slice — roughly 30% of the book — instead of defaulting those names into "Blend".
 
 **The earnings calendar must be queried per symbol, never whole-market.** Omitting `symbol` returns every company at once, which is tempting as a one-call replacement for 126 calls, but the response is hard-capped at exactly 1500 rows and truncates from the *near* end with no error or truncation flag. Verified: a 12-day window (2026-07-28 → 08-09) still hit the cap and returned only 08-03 onward, and `AAPL` — reporting 2026-07-30 — was absent from both that call and the 1-month version. The most imminent earnings are precisely the ones it drops.
 
@@ -77,12 +81,26 @@ Also verified: do **not** derive market cap from `price × shareOutstanding` —
 
 **Futures are not available at all** — not on the free tier, and not as an asset class. The banner's S&P futures line is sourced from [Yahoo Finance](#yahoo-finance-unofficial) instead; see that section for the evidence and for why the `/ES` symbol in particular is a trap.
 
-**Operational note:** within a single run each job makes a Finnhub call per ticker per endpoint with a 1.1s sleep after each — roughly **54 calls/minute during that run**, close to the 60/min ceiling regardless of how often the job fires. At the current 126 tickers that's ~4.6 minutes for the quote/news job (2 calls each) and ~6.9 minutes for the daily fundamentals job (3 calls each). The two jobs are scheduled far enough apart (every 30 min vs. daily at 06:00) that overlap is not a practical concern, but adding a third per-ticker call to either loop, or growing the watchlist substantially, is worth re-checking against the 60/min ceiling.
+**Operational note:** within a single run each job makes a Finnhub call per ticker per endpoint with a 1.1s sleep after each — roughly **54 calls/minute during that run**, close to the 60/min ceiling regardless of how often the job fires. Both jobs cover the watchlist *plus* any ticker held in `portfolio_positions` but not watchlisted, skipping the `$CASH` sentinel and option symbols, which Finnhub cannot price. Held-only names are cheaper than watchlist ones: the quote job skips their news and the fundamentals job skips their earnings calendar, since neither feeds the Portfolio tab. At 126 watchlist + 2 held-only tickers that's ~4.6 minutes for the quote/news job and ~7.0 minutes for the daily fundamentals job. The two are scheduled far enough apart (every 30 min vs. daily at 06:00) that overlap is not a practical concern, but adding a further per-ticker call to either loop, or growing the watchlist substantially, is worth re-checking against the 60/min ceiling.
+
+**Historical candles are not on the free tier.** `GET /api/v1/stock/candle` returns `403 "You don't have access to this resource"`, which is why daily price history for the Sharpe/drawdown/beta metrics comes from Yahoo instead — see below. Nothing else in the project depends on it.
+
+**The earnings endpoint reliably fails for the first ~3 tickers of a run.** `/calendar/earnings` answers with an HTML page rather than JSON, surfacing as `Unexpected token '<'` from `res.json()`, then works normally for the remaining ~125.
+
+Observed on two separate runs, failing on the same three tickers both times (`MSFT`, `ATXRF`, `SPY` — the first three in watchlist order). **The cause is not established.** A first guess of rate-limit spillover from a preceding job does not hold: the second occurrence was preceded only by Yahoo and Supabase calls, with no Finnhub traffic at all. Whatever it is, it is positional rather than load-dependent.
+
+Impact is small and self-limiting — those tickers keep their existing `stock_earnings` rows, because the delete only runs after a successful fetch. Worth recognising that it is **not** the endpoint going premium: queried directly it returns HTTP 200 and valid JSON. If it ever matters, retrying a failed earnings fetch once would likely mask it entirely.
 
 ### Yahoo Finance (unofficial)
 `GET query1.finance.yahoo.com/v8/finance/chart/ES=F?range=1d&interval=1d` in `MarketBanner.tsx`, for the front-month E-mini S&P 500 futures line under the SPY tile. No key; requires a browser-like `User-Agent` or the request is rejected. Price and previous close come from `chart.result[0].meta` (`regularMarketPrice`, `chartPreviousClose`); the percentage is computed locally since the endpoint does not return one.
 
 **Why not Finnhub:** Finnhub has no futures asset class whatsoever. Verified across three independent checks — `/quote` returns `c: 0` for `ES1!`, `ES=F`, `ESU2026`, `CME:ES`, and `SPX` (and `/ES` resolves to **Eversource Energy**, the equity `ES`, at ~$75 rather than the index at ~7,400); symbol search returns zero results for "E-mini" or "S&P 500 futures" and only ever returns `Common Stock`; and `/futures/exchange` and `/futures/symbol` return the marketing HTML page while `/forex/exchange` and `/crypto/exchange` return real JSON. Finnhub's freely published [S&P 500 futures tick dataset](https://www.kaggle.com/datasets/finnhub/sp-500-futures-tick-data-sp) is a static 2000–2019 Kaggle dump, not an API — easy to mistake for live coverage.
+
+**Second use — daily price history.** `scripts/backfill-price-history.js` calls the same chart endpoint with `?range=5y&interval=1d` for every held ticker plus `SPY`, writing closes and volume into `price_history`. This feeds the Sharpe/drawdown/beta metrics on the Portfolio tab, which cannot be computed from point-in-time data at all. Finnhub was the obvious source and is not available: `/stock/candle` is 403 on the free tier.
+
+Coverage checked against the real book before building on it: **34/34 symbols returned data**, including the OTC foreign listings Finnhub has no profile for (`ATXRF`, `TORXF`, `CPPKF`, `MTLMY`). Depth varies — most have the full ~1250 bars, but six are recent listings, the shortest being `SIVEF` at 90. That is what limits the longest window covering every holding to ~90 trading days, and why 1Y is labelled as 86.5% coverage rather than presented as whole-book.
+
+This is a batch script, not a page render: ~35 requests at 300ms spacing, run by hand. It is not on the 60/min Finnhub budget and does not touch it.
 
 **Stability caveat:** this is an undocumented endpoint with no terms guaranteeing availability; it can change shape or start rate-limiting by IP without notice. Every failure path (`!res.ok`, malformed JSON, missing fields, thrown error) returns `{ price: null, changePct: null }`, and the banner only renders the futures line when `price !== null` — so a breakage silently drops the line rather than erroring the page. Load is one request per page render behind `revalidate: 300`, not a per-ticker loop.
 

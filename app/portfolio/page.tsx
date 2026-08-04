@@ -7,6 +7,54 @@ import PortfolioSection, {
   type EnrichedPosition,
   type PortfolioPosition,
 } from "@/components/PortfolioSection";
+import PortfolioPanel from "@/components/PortfolioPanel";
+import { computeAnalytics, type AnalyticsPosition } from "@/lib/portfolioAnalytics";
+import { computeWindow, dailyRiskFree, type WindowMetrics } from "@/lib/riskMetrics";
+import { alignWindow, reconstructSeries, type PriceRow } from "@/lib/returnSeries";
+
+const BENCHMARK = "SPY";
+
+/** 1M is deliberately absent: 21 observations is too few for Sharpe to mean anything. */
+const RISK_WINDOWS: [string, number][] = [
+  ["3M", 63],
+  ["6M", 126],
+  ["1Y", 252],
+];
+
+/** A year of trading days plus slack for holidays and weekends. */
+const HISTORY_LOOKBACK_DAYS = 400;
+
+/**
+ * Module-level so the clock read is not an impure call during render — the same
+ * reason isPriceStale below is not inlined.
+ */
+function historyStartDate(): string {
+  return new Date(Date.now() - HISTORY_LOOKBACK_DAYS * 86_400_000).toISOString().split("T")[0];
+}
+
+/**
+ * PostgREST caps a response at 1000 rows. Paging through explicitly rather than
+ * taking the first page — a silently truncated series would still compute, just
+ * on a fraction of the history, which is the worst kind of wrong.
+ */
+async function fetchPriceHistory(since: string): Promise<PriceRow[]> {
+  const PAGE = 1000;
+  const out: PriceRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("price_history")
+      .select("ticker, date, close, volume")
+      .gte("date", since)
+      .order("date", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.error(`[portfolio] price_history query failed (${error.code}): ${error.message}`);
+      return [];
+    }
+    out.push(...((data ?? []) as PriceRow[]));
+    if (!data || data.length < PAGE) return out;
+  }
+}
 
 type Portfolio = {
   slot: number;
@@ -49,16 +97,50 @@ export default async function PortfolioPage() {
 
   const rows = error ? [] : ((positions ?? []) as (PortfolioPosition & { slot: number })[]);
 
+  type Characteristics = {
+    sector: string | null;
+    market_cap: number | null;
+    market_cap_currency: string | null;
+    beta: number | null;
+    price_to_book: number | null;
+    volatility_3m: number | null;
+    return_52w: number | null;
+    roe_ttm: number | null;
+    forward_pe: number | null;
+  };
+
   const quoteMap = new Map<string, { price: number; updatedAt: string | null }>();
+  const factMap = new Map<string, Characteristics>();
+  // Distinguished from "no rows": if the exposure columns do not exist yet the
+  // panel must say so rather than render empty charts, which would read as
+  // "you have no sector exposure".
+  let fundamentalsUnavailable = false;
+
   if (rows.length > 0) {
-    const { data: quotes } = await supabase
-      .from("stock_quotes")
-      .select("ticker, price, updated_at")
-      .in("ticker", [...new Set(rows.map((r) => r.ticker))]);
+    const tickers = [...new Set(rows.map((r) => r.ticker))];
+    const [{ data: quotes }, { data: facts, error: factsError }] = await Promise.all([
+      supabase.from("stock_quotes").select("ticker, price, updated_at").in("ticker", tickers),
+      supabase
+        .from("stock_fundamentals")
+        .select(
+          "ticker, sector, market_cap, market_cap_currency, beta, price_to_book, volatility_3m, return_52w, roe_ttm, forward_pe"
+        )
+        .in("ticker", tickers),
+    ]);
+
     for (const q of quotes ?? []) {
       if (typeof q.price === "number") {
         quoteMap.set(q.ticker, { price: q.price, updatedAt: q.updated_at ?? null });
       }
+    }
+
+    if (factsError) {
+      // 42703 is "column does not exist" — the migration has not been run.
+      console.error(`[portfolio] fundamentals query failed (${factsError.code}): ${factsError.message}`);
+      fundamentalsUnavailable = true;
+    }
+    for (const f of facts ?? []) {
+      factMap.set(f.ticker, f as Characteristics);
     }
   }
 
@@ -117,6 +199,76 @@ export default async function PortfolioPage() {
   const combinedPnl = allPositions.reduce((sum, p) => sum + (p.pnl ?? 0), 0);
   const filledSlots = SLOTS.filter((s) => (bySlot.get(s) ?? []).length > 0).length;
 
+  // The panel aggregates across every slot: "what am I exposed to" is a
+  // question about the whole book, which no single section can answer.
+  const analytics = computeAnalytics(
+    allPositions.map((p): AnalyticsPosition => {
+      const f = factMap.get(p.ticker);
+      const costBasis =
+        p.marketValue !== null && p.pnl !== null ? p.marketValue - p.pnl : null;
+      return {
+        ticker: p.ticker,
+        isCash: p.isCash,
+        marketValue: p.marketValue,
+        costBasis,
+        pnl: p.pnl,
+        sector: f?.sector ?? null,
+        marketCap: f?.market_cap ?? null,
+        marketCapCurrency: f?.market_cap_currency ?? null,
+        beta: f?.beta ?? null,
+        priceToBook: f?.price_to_book ?? null,
+        volatility3m: f?.volatility_3m ?? null,
+        return52w: f?.return_52w ?? null,
+        roeTtm: f?.roe_ttm ?? null,
+        forwardPe: f?.forward_pe ?? null,
+      };
+    })
+  );
+
+  // --- Risk-adjusted return windows -------------------------------------
+  // Reconstructed from today's share counts over past closes, which is a
+  // backtest of the current book rather than a track record: positions since
+  // sold are absent. Labelled as such in the panel; portfolio_snapshots
+  // accumulates the honest version forward.
+  const since = historyStartDate();
+
+  const [priceRows, { data: rateRows }, { count: snapshotCount }] = await Promise.all([
+    allPositions.length > 0 ? fetchPriceHistory(since) : Promise.resolve([] as PriceRow[]),
+    supabase.from("risk_free_rates").select("date, annual_pct").gte("date", since),
+    supabase.from("portfolio_snapshots").select("date", { count: "exact", head: true }),
+  ]);
+
+  const benchmarkRows = priceRows.filter((p) => p.ticker === BENCHMARK);
+  const calendar = benchmarkRows.map((r) => r.date);
+  const benchmarkByDate = new Map(benchmarkRows.map((r) => [r.date, r.close]));
+  const riskFreeByDate = new Map(
+    (rateRows ?? []).map((r) => [r.date as string, dailyRiskFree(r.annual_pct as number)])
+  );
+
+  const holdingQuantities = allPositions
+    .filter((p) => !p.isCash && p.usd && p.marketValue !== null)
+    .map((p) => ({
+      ticker: p.ticker,
+      quantity: p.quantity,
+      marketValue: p.marketValue as number,
+    }));
+
+  const riskWindows: { metrics: WindowMetrics; coveragePct: number; covered: number; total: number }[] =
+    [];
+  if (benchmarkRows.length > 0 && holdingQuantities.length > 0) {
+    for (const [label, days] of RISK_WINDOWS) {
+      const series = reconstructSeries(priceRows, holdingQuantities, days, calendar);
+      const aligned = alignWindow(series, benchmarkByDate, riskFreeByDate);
+      if (!aligned) continue;
+      riskWindows.push({
+        metrics: computeWindow(label, aligned.portfolio, aligned.benchmark, aligned.riskFree),
+        coveragePct: series.coveragePct,
+        covered: series.covered,
+        total: series.total,
+      });
+    }
+  }
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-screen-2xl p-4">
@@ -168,6 +320,13 @@ export default async function PortfolioPage() {
                 </div>
               </div>
             )}
+
+            <PortfolioPanel
+              analytics={analytics}
+              fundamentalsUnavailable={fundamentalsUnavailable}
+              riskWindows={riskWindows}
+              trackRecordDays={snapshotCount ?? 0}
+            />
 
             {/* All five slots always render, so the layout is stable whether one
                 portfolio is loaded or five. */}

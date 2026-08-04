@@ -39,10 +39,15 @@ async function fetchProfile(ticker) {
   );
   const data = await res.json();
   // ETFs and some OTC names come back as {} — no profile on the free tier.
-  if (!data || !data.ticker) return { marketCap: null, currency: null };
+  if (!data || !data.ticker) return { marketCap: null, currency: null, sector: null };
   return {
     marketCap: typeof data.marketCapitalization === "number" ? data.marketCapitalization : null,
     currency: data.currency || null,
+    // finnhubIndustry is Finnhub's own taxonomy, not GICS — "Metals & Mining"
+    // and "Semiconductors" sit at the same level, so it is closer to industry
+    // than sector. Stored as given rather than remapped: an invented GICS
+    // rollup would be a guess layered on top of someone else's guess.
+    sector: data.finnhubIndustry || null,
   };
 }
 
@@ -53,14 +58,25 @@ async function fetchProfile(ticker) {
 //
 // Both are null for ETFs and for companies with no expected earnings, which is
 // correct rather than a failure — the UI renders those as an em-dash.
-async function fetchPeRatios(ticker) {
+// The same response also carries the characteristics the Portfolio exposure
+// panel aggregates (beta, price/book, volatility, 12m return, ROE), so they are
+// read from this one call rather than costing extra requests.
+async function fetchMetrics(ticker) {
   const res = await fetch(
     `https://finnhub.io/api/v1/stock/metric?symbol=${ticker}&metric=all&token=${FINNHUB_KEY}`
   );
   const data = await res.json();
   const m = data && data.metric ? data.metric : {};
   const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-  return { forwardPe: num(m.forwardPE), peTtm: num(m.peTTM) };
+  return {
+    forwardPe: num(m.forwardPE),
+    peTtm: num(m.peTTM),
+    beta: num(m.beta),
+    priceToBook: num(m.pbAnnual),
+    volatility3m: num(m["3MonthADReturnStd"]),
+    return52w: num(m["52WeekPriceReturnDaily"]),
+    roeTtm: num(m.roeTTM),
+  };
 }
 
 // Always queried per symbol, never via the whole-market form of this endpoint:
@@ -79,16 +95,47 @@ async function fetchEarnings(ticker, from, to) {
   return Array.isArray(data?.earningsCalendar) ? data.earningsCalendar : [];
 }
 
+// A held ticker that cannot be sent to Finnhub — the cash sentinel is not a
+// security, and an option symbol ("DPRO 01/15/2027 10.00 C") is not a symbol
+// Finnhub accepts. Mirrors isQuotable in refresh-data.js.
+function isQuotable(ticker) {
+  return !ticker.startsWith("$") && !/\s/.test(ticker);
+}
+
 async function main() {
-  const { data: stocks, error } = await supabase
-    .from("stocks")
-    .select("ticker")
-    .order("created_at", { ascending: true });
+  const [{ data: stocks, error }, { data: held, error: heldError }] = await Promise.all([
+    supabase.from("stocks").select("ticker").order("created_at", { ascending: true }),
+    supabase.from("portfolio_positions").select("ticker"),
+  ]);
 
   if (error) {
     console.error("Failed to fetch tickers:", error.message);
     process.exit(1);
   }
+  // Not fatal: a missing portfolio table should not stop the watchlist refresh.
+  if (heldError) {
+    console.error(`Could not read portfolio positions (${heldError.code}): ${heldError.message}`);
+  }
+
+  // Anything held needs fundamentals too, whether or not it is on the
+  // watchlist. Without this a held-but-unwatched name has no sector and no
+  // beta, so it would vanish from the exposure pies and quietly bias every
+  // weighted average — the same blind spot refresh-data.js had for quotes.
+  const watchlist = stocks.map((s) => s.ticker);
+  const watchlistSet = new Set(watchlist);
+  const heldOnly = [
+    ...new Set((held ?? []).map((h) => h.ticker).filter((t) => !watchlistSet.has(t))),
+  ]
+    .filter(isQuotable)
+    .sort();
+
+  // Earnings are fetched only for the watchlist: the Portfolio tab shows no
+  // earnings column, so a held-only name needs its characteristics but not its
+  // calendar, and skipping it saves a call per ticker.
+  const targets = [
+    ...watchlist.map((ticker) => ({ ticker, withEarnings: true })),
+    ...heldOnly.map((ticker) => ({ ticker, withEarnings: false })),
+  ];
 
   const today = new Date();
 
@@ -99,13 +146,24 @@ async function main() {
   const earningsFrom = today.toISOString().split("T")[0];
   const earningsToStr = earningsTo.toISOString().split("T")[0];
 
-  console.log(`Refreshing fundamentals for ${stocks.length} tickers...\n`);
+  console.log(
+    `Refreshing fundamentals for ${targets.length} tickers ` +
+      `(${watchlist.length} watchlist, ${heldOnly.length} held-only${heldOnly.length ? `: ${heldOnly.join(", ")}` : ""})...\n`
+  );
 
-  for (const { ticker } of stocks) {
-    let profile = { marketCap: null, currency: null };
-    let pe = { forwardPe: null, peTtm: null };
+  for (const { ticker, withEarnings } of targets) {
+    let profile = { marketCap: null, currency: null, sector: null };
+    let metrics = {
+      forwardPe: null,
+      peTtm: null,
+      beta: null,
+      priceToBook: null,
+      volatility3m: null,
+      return52w: null,
+      roeTtm: null,
+    };
 
-    // --- Market cap ---
+    // --- Profile: market cap, listing currency, sector ---
     try {
       profile = await fetchProfile(ticker);
     } catch (e) {
@@ -114,9 +172,9 @@ async function main() {
 
     await sleep(RATE_LIMIT_DELAY);
 
-    // --- P/E ratios ---
+    // --- Metrics: P/E plus the exposure characteristics ---
     try {
-      pe = await fetchPeRatios(ticker);
+      metrics = await fetchMetrics(ticker);
     } catch (e) {
       console.error(`  metric fetch error for ${ticker}:`, e.message);
     }
@@ -127,34 +185,37 @@ async function main() {
     // Replace this ticker's whole set rather than reconciling: scheduled dates
     // shift and quarters roll off, so delete + insert is simpler and matches how
     // stock_news is refreshed in refresh-data.js.
+    // Held-only tickers skip this block entirely — see `targets` above.
     let earningsCount = 0;
-    try {
-      const rows = await fetchEarnings(ticker, earningsFrom, earningsToStr);
+    if (withEarnings) {
+      try {
+        const rows = await fetchEarnings(ticker, earningsFrom, earningsToStr);
 
-      await supabase.from("stock_earnings").delete().eq("ticker", ticker);
+        await supabase.from("stock_earnings").delete().eq("ticker", ticker);
 
-      if (rows.length > 0) {
-        const { error: eErr } = await supabase.from("stock_earnings").insert(
-          rows.map((r) => ({
-            // Keyed on the ticker we asked for, NOT r.symbol -- otherwise BRK.B's
-            // rows would be filed under BRK.A and never join back to the watchlist.
-            ticker,
-            source_symbol: r.symbol ?? null,
-            date: r.date,
-            hour: r.hour || null,
-            quarter: r.quarter ?? null,
-            year: r.year ?? null,
-            eps_estimate: typeof r.epsEstimate === "number" ? r.epsEstimate : null,
-            revenue_estimate:
-              typeof r.revenueEstimate === "number" ? r.revenueEstimate : null,
-            updated_at: new Date().toISOString(),
-          }))
-        );
-        if (eErr) console.error(`  earnings write error for ${ticker}: ${eErr.message}`);
-        else earningsCount = rows.length;
+        if (rows.length > 0) {
+          const { error: eErr } = await supabase.from("stock_earnings").insert(
+            rows.map((r) => ({
+              // Keyed on the ticker we asked for, NOT r.symbol -- otherwise BRK.B's
+              // rows would be filed under BRK.A and never join back to the watchlist.
+              ticker,
+              source_symbol: r.symbol ?? null,
+              date: r.date,
+              hour: r.hour || null,
+              quarter: r.quarter ?? null,
+              year: r.year ?? null,
+              eps_estimate: typeof r.epsEstimate === "number" ? r.epsEstimate : null,
+              revenue_estimate:
+                typeof r.revenueEstimate === "number" ? r.revenueEstimate : null,
+              updated_at: new Date().toISOString(),
+            }))
+          );
+          if (eErr) console.error(`  earnings write error for ${ticker}: ${eErr.message}`);
+          else earningsCount = rows.length;
+        }
+      } catch (e) {
+        console.error(`  earnings fetch error for ${ticker}:`, e.message);
       }
-    } catch (e) {
-      console.error(`  earnings fetch error for ${ticker}:`, e.message);
     }
 
     // Write even when all are null, so a ticker that loses coverage gets its
@@ -168,8 +229,14 @@ async function main() {
         ticker,
         market_cap: profile.marketCap,
         market_cap_currency: profile.currency,
-        forward_pe: pe.forwardPe,
-        pe_ttm: pe.peTtm,
+        sector: profile.sector,
+        forward_pe: metrics.forwardPe,
+        pe_ttm: metrics.peTtm,
+        beta: metrics.beta,
+        price_to_book: metrics.priceToBook,
+        volatility_3m: metrics.volatility3m,
+        return_52w: metrics.return52w,
+        roe_ttm: metrics.roeTtm,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "ticker" }
@@ -179,8 +246,9 @@ async function main() {
     await sleep(RATE_LIMIT_DELAY);
     console.log(
       `✓ ${ticker}  mcap=${profile.marketCap ?? "—"} ${profile.currency ?? ""}` +
-        `  fwdPE=${pe.forwardPe?.toFixed(1) ?? "—"}  ttmPE=${pe.peTtm?.toFixed(1) ?? "—"}` +
-        `  earnings=${earningsCount}`
+        `  sector=${profile.sector ?? "—"}` +
+        `  fwdPE=${metrics.forwardPe?.toFixed(1) ?? "—"}  beta=${metrics.beta?.toFixed(2) ?? "—"}` +
+        `  earnings=${withEarnings ? earningsCount : "skipped"}`
     );
   }
 

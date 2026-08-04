@@ -10,7 +10,7 @@ A personal investment research dashboard for tracking a stock watchlist, macro m
 - **Research Posts** — personal blog-style notes stored in Supabase, written directly via the Supabase dashboard
 - **AI Summary** — latest market news article with a one-paragraph analysis powered by Google Gemini, cached per-article so repeat views don't re-generate
 - **TradingView Chart** — embedded interactive chart for any selected watchlist ticker
-- **Portfolio** — up to five portfolios with live P&L, loaded from broker CSV exports by a local import script (see [Portfolio (CSV import)](#portfolio-csv-import) below and [`PORTFOLIO.md`](PORTFOLIO.md)). The IBKR gateway sync it previously used is [tabled but still documented](#portfolio--ibkr-integration-tabled).
+- **Portfolio** — up to five portfolios with live P&L, loaded from broker CSV exports by a local import script (see [Portfolio (CSV import)](#portfolio-csv-import) below and [`PORTFOLIO.md`](PORTFOLIO.md)). Above them, an **Exposure & Risk** panel aggregates the whole book: sector and size×style composition charts, plus concentration, beta, momentum and quality metrics — every formula and its limitations in [`METRICS.md`](METRICS.md). The IBKR gateway sync it previously used is [tabled but still documented](#portfolio--ibkr-integration-tabled).
 
 ## Architecture
 
@@ -98,7 +98,9 @@ Coverage for both fundamentals metrics is partial by nature — ETFs have no Fin
 
 The Portfolio tab holds **up to five portfolios** in fixed slots, loaded from
 broker CSV exports. Full instructions, per-broker column mappings, and the
-caveats that affect the numbers are in **[`PORTFOLIO.md`](PORTFOLIO.md)**.
+caveats that affect the numbers are in **[`PORTFOLIO.md`](PORTFOLIO.md)**. The
+formulas behind the Exposure & Risk panel above them — and what each metric
+deliberately does *not* claim — are in **[`METRICS.md`](METRICS.md)**.
 
 ```
 # one-time: run scripts/portfolio-positions-table.sql in the Supabase SQL editor
