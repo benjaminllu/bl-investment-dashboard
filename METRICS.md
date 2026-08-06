@@ -94,6 +94,57 @@ Two honest weaknesses, stated because they are not visible in the picture:
   compared against USD thresholds. The panel says how many holdings this affects.
   Only names near a boundary can be misplaced by it.
 
+### Funds
+
+No quote provider classifies a fund — Finnhub's `profile2` returns `{}` for
+every ETF and mutual fund, so they arrive with no sector and no market cap. On a
+book holding VOO, VFIAX and GDX that made `Unclassified` **32.8% of the sector
+chart, its largest slice**, and a misleading one: it conflated *"we have no
+data"* with *"this is deliberately diversified"*, which are not the same claim.
+
+[`lib/fundClassification.ts`](lib/fundClassification.ts) is a small
+hand-maintained table filling that gap. Fund mandates change on the order of
+never, and the alternative — decomposing each fund into its holdings — needs
+per-fund constituent data no free source provides, and would still have to be
+mapped onto Finnhub's taxonomy.
+
+Both fields are optional, and **omitting one is the point**:
+
+| Fund | Sector | Size × style | Why |
+|---|---|---|---|
+| VOO, VFIAX, SPY, VTI | `Broad Index` | `Large Blend` | The style box is a fact of the mandate — an S&P 500 fund *is* large blend — but no single sector applies |
+| QQQ | `Broad Index` | `Large Growth` | Nasdaq-100 excludes financials and skews to tech by construction |
+| GDX, XLE, XLK, SMH… | the sector | *(none)* | Sector is fixed by mandate; size is not — GDX spans large miners to juniors |
+
+A classification is recorded only where the mandate makes it a fact rather than
+an estimate. GDX therefore has a sector but no style bucket, and its dollars
+stay `Unclassified` on the factor chart — which is the correct answer, not a
+gap. `Broad Index` is deliberately its own category rather than a real sector:
+it says "many sectors at once", which is true, instead of picking one.
+
+Effect on the live book: sector `Unclassified` fell from **32.8% to 0.1%**, and
+factor `Unclassified` from roughly 30% to **11.6%**.
+
+---
+
+## Per-portfolio metrics
+
+The same functions run per slot as well as across the whole book, because the
+slots differ enough in character that a combined figure describes none of them:
+
+| | Beta | Top holding | Effective holdings | Cash |
+|---|---|---|---|---|
+| Roth IRA | 0.71 | AVAV 46.4% | 2.6 of 3 | 21.6% |
+| Individual | 1.98 | ATXRF 20.6% | 14.1 of 31 | −1.2% |
+| Vanguard | 1.35 | VOO 26.0% | 10.4 of 26 | 3.9% |
+
+Each slot shows return **as a percentage** alongside the dollar P&L. Once slots
+differ by an order of magnitude the dollars stop being comparable — $309k on
+$2.8M and $309k on $242k are not the same result.
+
+Winners/losers are **counts, not weights**. That is deliberate: it measures
+breadth, so one large winner cannot mask a broadly losing slot.
+
 ---
 
 ## Concentration

@@ -9,7 +9,12 @@ import PortfolioSection, {
   type PortfolioPosition,
 } from "@/components/PortfolioSection";
 import PortfolioPanel from "@/components/PortfolioPanel";
-import { computeAnalytics, type AnalyticsPosition } from "@/lib/portfolioAnalytics";
+import {
+  computeAnalytics,
+  type AnalyticsPosition,
+  type PortfolioAnalytics,
+} from "@/lib/portfolioAnalytics";
+import { fundFactor, fundSector } from "@/lib/fundClassification";
 import { computeWindow, dailyRiskFree, type WindowMetrics } from "@/lib/riskMetrics";
 import { alignWindow, reconstructSeries, type PriceRow } from "@/lib/returnSeries";
 
@@ -226,31 +231,42 @@ export default async function PortfolioPage() {
   const combinedPnl = allPositions.reduce((sum, p) => sum + (p.pnl ?? 0), 0);
   const filledSlots = SLOTS.filter((s) => (bySlot.get(s) ?? []).length > 0).length;
 
+  // Funds carry no sector or market cap from any provider, so their mandate
+  // supplies what the data cannot — otherwise an S&P 500 tracker reads as
+  // "unknown" rather than "deliberately diversified".
+  const toAnalytics = (p: EnrichedPosition): AnalyticsPosition => {
+    const f = factMap.get(p.ticker);
+    const costBasis = p.marketValue !== null && p.pnl !== null ? p.marketValue - p.pnl : null;
+    return {
+      ticker: p.ticker,
+      isCash: p.isCash,
+      marketValue: p.marketValue,
+      costBasis,
+      pnl: p.pnl,
+      sector: f?.sector ?? fundSector(p.ticker),
+      marketCap: f?.market_cap ?? null,
+      marketCapCurrency: f?.market_cap_currency ?? null,
+      beta: f?.beta ?? null,
+      priceToBook: f?.price_to_book ?? null,
+      volatility3m: f?.volatility_3m ?? null,
+      return52w: f?.return_52w ?? null,
+      roeTtm: f?.roe_ttm ?? null,
+      forwardPe: f?.forward_pe ?? null,
+      factorBucket: fundFactor(p.ticker),
+    };
+  };
+
   // The panel aggregates across every slot: "what am I exposed to" is a
   // question about the whole book, which no single section can answer.
-  const analytics = computeAnalytics(
-    allPositions.map((p): AnalyticsPosition => {
-      const f = factMap.get(p.ticker);
-      const costBasis =
-        p.marketValue !== null && p.pnl !== null ? p.marketValue - p.pnl : null;
-      return {
-        ticker: p.ticker,
-        isCash: p.isCash,
-        marketValue: p.marketValue,
-        costBasis,
-        pnl: p.pnl,
-        sector: f?.sector ?? null,
-        marketCap: f?.market_cap ?? null,
-        marketCapCurrency: f?.market_cap_currency ?? null,
-        beta: f?.beta ?? null,
-        priceToBook: f?.price_to_book ?? null,
-        volatility3m: f?.volatility_3m ?? null,
-        return52w: f?.return_52w ?? null,
-        roeTtm: f?.roe_ttm ?? null,
-        forwardPe: f?.forward_pe ?? null,
-      };
-    })
-  );
+  const analytics = computeAnalytics(allPositions.map(toAnalytics));
+
+  // The same maths per slot. The slots differ enough in character — a $2.8M
+  // index-led book beside a $242k concentrated one — that a combined beta or
+  // concentration figure describes neither of them.
+  const analyticsBySlot = new Map<number, PortfolioAnalytics>();
+  for (const [slot, list] of bySlot) {
+    analyticsBySlot.set(slot, computeAnalytics(list.map(toAnalytics)));
+  }
 
   // --- Risk-adjusted return windows -------------------------------------
   // Reconstructed from today's share counts over past closes, which is a
@@ -363,6 +379,7 @@ export default async function PortfolioPage() {
                 label={labelBySlot.get(slot)?.label ?? `Portfolio ${slot}`}
                 broker={labelBySlot.get(slot)?.broker ?? null}
                 positions={bySlot.get(slot) ?? []}
+                analytics={analyticsBySlot.get(slot)}
               />
             ))}
           </div>

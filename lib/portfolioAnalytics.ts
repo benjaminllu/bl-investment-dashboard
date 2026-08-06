@@ -33,6 +33,13 @@ export type AnalyticsPosition = {
   return52w: number | null;
   roeTtm: number | null;
   forwardPe: number | null;
+  /**
+   * Pre-classified size × style, for holdings where it cannot be derived. A
+   * fund has no single market cap or book value, but an S&P 500 tracker is
+   * large blend as a matter of mandate — see lib/fundClassification.ts. Takes
+   * precedence over the derived bucket when set.
+   */
+  factorBucket?: string | null;
 };
 
 /** An average, plus how much of the book it actually managed to cover. */
@@ -205,6 +212,10 @@ export function sectorComposition(positions: AnalyticsPosition[]): Slice[] {
  */
 export function factorComposition(positions: AnalyticsPosition[]): Slice[] {
   return composition(positions, (p) => {
+    // A fund's mandate can fix its style box where its (absent) market cap and
+    // book value cannot. Funds whose mandate fixes no style carry no override
+    // and correctly stay Unclassified.
+    if (p.factorBucket) return p.factorBucket;
     const size = sizeBucket(p.marketCap);
     const style = styleBucket(p.priceToBook);
     return size && style ? `${size} ${style}` : null;

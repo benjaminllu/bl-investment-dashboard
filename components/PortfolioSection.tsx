@@ -1,3 +1,5 @@
+import type { PortfolioAnalytics } from "@/lib/portfolioAnalytics";
+
 export type PortfolioPosition = {
   ticker: string;
   company: string | null;
@@ -100,10 +102,13 @@ export default function PortfolioSection({
   label,
   broker,
   positions,
+  analytics,
 }: {
   label: string;
   broker: string | null;
   positions: EnrichedPosition[];
+  /** Same maths as the panel above, scoped to this slot. */
+  analytics?: PortfolioAnalytics;
 }) {
   if (positions.length === 0) {
     return (
@@ -146,11 +151,23 @@ export default function PortfolioSection({
           <span className="text-muted-foreground">
             Value <span className="font-semibold text-foreground">{usd(totalValue)}</span>
           </span>
+          {/* The percentage matters more than the dollars once slots differ by
+              an order of magnitude — $309k on $2.8M and $309k on $242k are not
+              the same result. */}
           <span className="text-muted-foreground">
             P&amp;L{" "}
             <span className="font-semibold">
               <Signed value={totalPnl} render={(v) => `$${money(v)}`} />
             </span>
+            {analytics?.totalReturnPct != null && (
+              <span className="font-semibold">
+                {" "}
+                <Signed
+                  value={analytics.totalReturnPct}
+                  render={(v) => `${v.toFixed(1)}%`}
+                />
+              </span>
+            )}
           </span>
           {/* Leads with the relative age, since "11 days ago" is what tells you
               a slot is stale; the exact timestamp is the tooltip. */}
@@ -162,6 +179,68 @@ export default function PortfolioSection({
           )}
         </div>
       </div>
+
+      {/* Per-slot character, not a repeat of the panel above. The slots differ
+          enough — an index-led book beside a concentrated one — that the
+          combined figures describe neither, and beta and concentration are the
+          two that diverge most sharply between them. */}
+      {analytics && analytics.positionCount > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 pb-3 text-xs tabular-nums text-muted-foreground">
+          {analytics.beta.value !== null && (
+            <span
+              title={
+                analytics.beta.coveragePct < 95
+                  ? `Value-weighted over the ${analytics.beta.coveragePct.toFixed(0)}% of this slot with a published beta.`
+                  : "Value-weighted. Beta is linear in weights, so this is the slot's beta exactly."
+              }
+            >
+              Beta <span className="font-semibold text-foreground">{analytics.beta.value.toFixed(2)}</span>
+            </span>
+          )}
+          {analytics.largestPositionTicker && analytics.largestPositionPct !== null && (
+            <span title="Largest single holding as a share of this slot's securities.">
+              Top{" "}
+              <span className="font-semibold text-foreground">
+                {analytics.largestPositionTicker} {analytics.largestPositionPct.toFixed(1)}%
+              </span>
+            </span>
+          )}
+          {analytics.effectiveHoldings !== null && (
+            <span title="Herfindahl-based: the number of equally sized positions that would give the same concentration.">
+              Effective{" "}
+              <span className="font-semibold text-foreground">
+                {analytics.effectiveHoldings.toFixed(1)}
+              </span>{" "}
+              of {analytics.positionCount}
+            </span>
+          )}
+          {analytics.largestSectorLabel && analytics.largestSectorPct !== null && (
+            <span title="Largest sector weight within this slot.">
+              Sector{" "}
+              <span className="font-semibold text-foreground">
+                {analytics.largestSectorLabel} {analytics.largestSectorPct.toFixed(0)}%
+              </span>
+            </span>
+          )}
+          {analytics.cashValue !== 0 && (
+            <span title={`Cash balance ${usd(analytics.cashValue)}. Negative means a margin debit.`}>
+              Cash{" "}
+              <span className="font-semibold text-foreground">
+                {analytics.cashPct < 0 ? "−" : ""}
+                {Math.abs(analytics.cashPct).toFixed(1)}%
+              </span>
+            </span>
+          )}
+          {analytics.winners + analytics.losers > 0 && (
+            <span title="Positions above and below their cost basis. Counts, not weights — this is breadth, so one large winner cannot mask a broadly losing slot.">
+              <span className="font-semibold text-accent">{analytics.winners}</span>
+              <span className="text-muted-foreground"> up / </span>
+              <span className="font-semibold text-destructive">{analytics.losers}</span>
+              <span className="text-muted-foreground"> down</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Totals that quietly omit rows would explain nothing — say how many were
           left out and why. */}
