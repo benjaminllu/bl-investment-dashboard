@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { fetchMarketNews } from "@/lib/finnhubNews";
+import WipBadge from "@/components/WipBadge";
 
 async function generateGeminiSummary(headline: string, source: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
@@ -64,7 +65,17 @@ export default async function AISummaryPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-screen-2xl p-4">
-        <h1 className="mb-4 text-2xl font-bold text-foreground">AI Summary</h1>
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground">AI Summary</h1>
+            <WipBadge title="Summarises only the single latest market headline. Multi-story and per-ticker summaries are not built yet." />
+          </div>
+          {/* Without this the page reads as finished: one polished card gives no
+              hint that it is the top story only, rather than a digest. */}
+          <p className="mt-1 text-sm text-muted-foreground">
+            Currently summarises the latest market headline only — not a digest of the day.
+          </p>
+        </div>
 
         {!article && (
           <p className="text-muted-foreground">No market news available.</p>

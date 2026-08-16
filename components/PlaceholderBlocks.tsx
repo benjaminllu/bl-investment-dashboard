@@ -1,3 +1,5 @@
+import WipBadge from "./WipBadge";
+
 type Block = {
   label: string;
   description?: string;
@@ -45,7 +47,13 @@ export default function PlaceholderBlocks({
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-screen-2xl p-4">
         <div className="mb-4">
-          <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+          {/* The blocks below carry chart icons and read as real modules that
+              failed to load. The badge on the title is what tells you they are
+              unbuilt rather than broken. */}
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+            <WipBadge title={`The ${title} page has not been built yet — the blocks below are empty placeholders.`} />
+          </div>
           {description && (
             <p className="mt-1 text-sm text-muted-foreground">{description}</p>
           )}

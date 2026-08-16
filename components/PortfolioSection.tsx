@@ -1,4 +1,5 @@
 import type { PortfolioAnalytics } from "@/lib/portfolioAnalytics";
+import WipBadge from "./WipBadge";
 
 export type PortfolioPosition = {
   ticker: string;
@@ -133,6 +134,11 @@ export default function PortfolioSection({
     (latest, p) => (latest === null || p.imported_at > latest ? p.imported_at : latest),
     null
   );
+  // PORTFOLIO.md records the Vanguard cost-basis mapping as never having been
+  // run against a real export. Until it is, the derived Avg Cost and P&L on
+  // those slots are unverified rather than merely approximate.
+  const untestedCostBasis =
+    broker?.toLowerCase() === "vanguard" && positions.some((p) => p.avg_cost !== null);
 
   return (
     <section className="overflow-hidden rounded-xl bg-card">
@@ -141,6 +147,12 @@ export default function PortfolioSection({
           <h2 className="text-sm font-semibold text-foreground">{label}</h2>
           {broker && (
             <span className="text-xs uppercase tracking-wide text-muted-foreground">{broker}</span>
+          )}
+          {/* Only when the untested mapping actually produced numbers. A
+              Vanguard slot with no cost column has nothing to be wrong about,
+              and a badge there would be noise. */}
+          {untestedCostBasis && (
+            <WipBadge title="Vanguard cost basis is untested — its column mapping was written from Vanguard's documented header names but never exercised against a real export, so Avg Cost and P&L in this slot may be wrong. See PORTFOLIO.md." />
           )}
           <span className="text-xs text-muted-foreground">
             {positions.length} position{positions.length === 1 ? "" : "s"}

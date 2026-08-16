@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import WipBadge from "./WipBadge";
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -79,6 +80,10 @@ export default function NotificationButton() {
 
   return (
     <div className="flex items-center gap-2">
+      {/* One badge on the group rather than one per button: Enable and Send Test
+          are never visible at the same time, and the whole push feature is what
+          is unfinished, not either button individually. */}
+      <WipBadge title="Push notifications only send a test message — there is no alerting logic behind them yet." />
       {subscribed ? (
         <>
           <button
