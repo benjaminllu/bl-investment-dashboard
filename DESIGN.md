@@ -83,7 +83,7 @@ A near-black stage with exactly two meaningful signal colors; everything else is
 - **Signal Green** (`#34d399`): The one accent. Marks gains, active nav tab (and any other tab-row active state — the underline-tab pattern is used consistently across NavBar, watchlist list-tabs, and the research feed tabs), focus rings, primary buttons, and links on hover. Its scarcity is what makes it legible — it never appears as pure decoration.
 
 ### Semantic
-- **Alert Amber** (`#fbbf24`): The one warning-level state color, distinct from Signal Green (positive/active) and Alert Red (negative/error). Currently used only for the pre-market/after-hours market-status dot; reach for it anywhere else a state is "notable but not good or bad" rather than inventing a new hue.
+- **Alert Amber** (`#fbbf24`): The one warning-level state color, distinct from Signal Green (positive/active) and Alert Red (negative/error). Used for the pre-market/after-hours market-status dot and the WIP badge (`components/WipBadge.tsx`), which marks a feature as unfinished; reach for it anywhere else a state is "notable but not good or bad" rather than inventing a new hue.
 
 ### Neutral
 - **Void Black** (`#020617`): App background. The OLED-dark resting state, not a theme toggle — this product has no light mode.
