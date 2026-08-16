@@ -1,5 +1,9 @@
 import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-server";
+import { isLockConfigured, isPortfolioUnlocked } from "@/lib/portfolioLock";
+import { lockPortfolio } from "./actions";
+import PortfolioLockScreen from "@/components/PortfolioLockScreen";
 import PortfolioSection, {
   CASH_TICKER,
   isUsd,
@@ -110,10 +114,25 @@ function isPriceStale(updatedAt: string | null): boolean {
 }
 
 export default async function PortfolioPage() {
+  // Before any query, deliberately. A locked visitor triggers zero Supabase
+  // reads, so there is nothing to leak into the HTML or the RSC payload —
+  // hiding the numbers at render time would still have shipped them to the
+  // browser. It also spares the egress the comments above are careful about.
+  if (!(await isPortfolioUnlocked())) {
+    return <PortfolioLockScreen configured={isLockConfigured()} />;
+  }
+
+  // The three position-bearing tables have RLS enabled with no policy, so the
+  // anon key reads zero rows from them; only the service-role client can. The
+  // market-data tables below stay on the anon client — that data is public and
+  // the watchlist reads it from the browser.
   const [{ data: portfolios, error: portfoliosError }, { data: positions, error: positionsError }] =
     await Promise.all([
-      supabase.from("portfolios").select("slot, label, broker").order("slot", { ascending: true }),
-      supabase
+      supabaseAdmin
+        .from("portfolios")
+        .select("slot, label, broker")
+        .order("slot", { ascending: true }),
+      supabaseAdmin
         .from("portfolio_positions")
         .select("slot, ticker, company, quantity, avg_cost, currency, account, imported_at")
         .order("ticker", { ascending: true }),
@@ -278,7 +297,7 @@ export default async function PortfolioPage() {
   const [priceRows, { data: rateRows }, { count: snapshotCount }] = await Promise.all([
     allPositions.length > 0 ? getCachedPriceHistory(since) : Promise.resolve([] as PriceRow[]),
     supabase.from("risk_free_rates").select("date, annual_pct").gte("date", since),
-    supabase.from("portfolio_snapshots").select("date", { count: "exact", head: true }),
+    supabaseAdmin.from("portfolio_snapshots").select("date", { count: "exact", head: true }),
   ]);
 
   const benchmarkRows = priceRows.filter((p) => p.ticker === BENCHMARK);
@@ -315,13 +334,41 @@ export default async function PortfolioPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-screen-2xl p-4">
-        <div className="mb-4 flex items-baseline justify-between gap-4">
+        <div className="mb-4 flex items-center justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
-          {filledSlots > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {filledSlots} of {SLOTS.length} slots in use
-            </p>
-          )}
+          <div className="flex items-center gap-3">
+            {filledSlots > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {filledSlots} of {SLOTS.length} slots in use
+              </p>
+            )}
+            {/* A plain form posting a server action, so re-locking works with no
+                client JavaScript. Sits here rather than in the nav so the root
+                layout never has to read the cookie. */}
+            <form action={lockPortfolio}>
+              <button
+                type="submit"
+                title="Hide positions again in this browser"
+                className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+                  />
+                </svg>
+                Lock
+              </button>
+            </form>
+          </div>
         </div>
 
         {error ? (

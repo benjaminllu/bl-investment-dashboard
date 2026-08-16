@@ -15,6 +15,14 @@ const NAV_ITEMS = [
   { label: "Analytics", href: "/analytics" },
 ];
 
+/**
+ * Portfolio stays in the nav whether or not it is unlocked, and the lock
+ * control lives on the page itself rather than here. Hiding the tab would
+ * strand you: leave the page while locked and there is no way back to the
+ * unlock form short of typing the URL. Keeping it also means this component
+ * needs no knowledge of the cookie, which is what lets the root layout stay
+ * static — see app/layout.tsx.
+ */
 export default function NavBar() {
   const pathname = usePathname();
 

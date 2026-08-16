@@ -22,6 +22,35 @@ tables and seeds five slot rows:
 | `portfolios` | The five slots and their labels — `slot`, `label`, `broker` |
 | `portfolio_positions` | The positions themselves, keyed on `(slot, ticker)` |
 
+Then run [`scripts/enable-rls-portfolio.sql`](scripts/enable-rls-portfolio.sql)
+to lock those tables to the service-role key. See **Who can see this** below.
+
+## Who can see this
+
+The dashboard is a public URL, so `/portfolio` is **locked by default in every
+browser**. Ben enters `PORTFOLIO_PASSWORD` once and gets a signed cookie good
+for 30 days.
+
+The Portfolio tab stays in the nav either way — hiding it would strand you with
+no route back to the unlock form once you navigated away. Locked, the tab leads
+to the unlock screen; unlocked, a **Lock** button sits beside the page heading
+to hide positions again, which is what you want just before screen-sharing.
+
+There is nothing to remember before sharing the link. Locked is the default, and
+a viewer cannot turn it on.
+
+Two environment variables are required — see [`.env.example`](.env.example). If
+either is missing the route stays locked and says so, rather than opening.
+
+**The import scripts are unaffected by RLS.** They authenticate with
+`SUPABASE_SERVICE_ROLE_KEY`, which bypasses Row Level Security entirely. The
+same is true of the GitHub Actions refresh workflows. The one thing that *did*
+change: the deployed `/portfolio` page now reads through that key too, so
+`SUPABASE_SERVICE_ROLE_KEY` must be set in Vercel — not just in `.env.local` and
+Actions secrets. Without it the page cannot read positions at all.
+
+Full reasoning, threat model and limitations: [`SECURITY.md`](SECURITY.md).
+
 ## Importing
 
 Export positions from your broker, then run the import script. The first time an
@@ -246,6 +275,8 @@ update portfolios set label = 'Schwab Brokerage', broker = 'schwab' where slot =
   refused rather than double-counted.
 - ✅ Vanguard import: symbol normalisation, money-market-as-cash, zero-share
   skipping and seeded prices for unquotable funds.
+- ✅ Password gate on `/portfolio` plus RLS on the position tables, so positions
+  reach neither the page nor the anon key without the unlock cookie.
 - ⏳ **Vanguard cost basis is untested.** The export used to build the parser had
   no cost column, so the `Average Cost Per Share` and `Total Cost` mappings are
   written from Vanguard's documented header names but have not been exercised

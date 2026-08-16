@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   description: "Personal stock watchlist and investment tracker",
 };
 
+/**
+ * Deliberately does not read the unlock cookie. Doing so would opt every route
+ * into dynamic rendering, and the gate does not need it: the nav shows the same
+ * links either way, so only /portfolio itself has to be request-scoped.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{

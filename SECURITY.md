@@ -3,7 +3,7 @@
 This is a personal project. This document summarizes the security practices
 in place — it's a working reference, not a formal vulnerability-disclosure
 policy (this project doesn't accept external security reports). Last
-reviewed: 2026-07-10.
+reviewed: 2026-08-14.
 
 ## Secrets management
 
@@ -14,22 +14,67 @@ reviewed: 2026-07-10.
   secret has ever been committed, in any revision.
 - GitHub Actions secrets are configured in the repo's Actions secrets, not in
   code.
-- The Supabase service role key (full read/write, bypasses RLS) is only ever
-  used in local/CI scripts (`scripts/*.js`). The deployed Next.js app itself
-  uses only the public anon key (`lib/supabase.ts`).
+- The Supabase service role key (full read/write, bypasses RLS) is used by the
+  local/CI scripts (`scripts/*.js`) and, since RLS was enabled on the position
+  tables, by the server-rendered `/portfolio` page as well
+  (`lib/supabase-server.ts`). It is never exposed to the browser: only
+  `NEXT_PUBLIC_*` vars are inlined into the client bundle, and no route handler
+  or server action returns raw position rows to a client component.
+- `.env.example` lists every variable by name with empty values. It is the one
+  exception to the `.env*` gitignore rule and must never be given real values.
+
+## Portfolio access control
+
+The dashboard is a public URL that gets shared with family and friends. Every
+page is fine for them to see except `/portfolio`, which exposes share counts,
+cost basis and total net worth. Two independent layers gate it:
+
+1. **Application gate** (`lib/portfolioLock.ts`). `/portfolio` returns a lock
+   screen *before running a single Supabase query* when the request carries no
+   valid unlock cookie. The numbers are therefore absent from the HTML and the
+   RSC flight payload, not merely hidden by CSS.
+2. **Row Level Security** (`scripts/enable-rls-portfolio.sql`). RLS is enabled
+   with no policy on `portfolios`, `portfolio_positions`, `portfolio_snapshots`
+   and `ibkr_positions`, so the anon key reads zero rows from them.
+
+Layer 1 alone would only be a curtain: the anon key ships to the browser, so
+without layer 2 anyone could bypass the page and query the table directly from
+the devtools console. Layer 2 alone would break the page for Ben. Both are
+required.
+
+**Threat model.** This protects against a casual viewer — someone with the link
+who opens devtools. It is not designed against an attacker who has Ben's
+device, his password, or Supabase dashboard access.
+
+**The unlock cookie** holds a signed expiry, never the password: HMAC-SHA256
+over the expiry timestamp, keyed by `PORTFOLIO_COOKIE_SECRET`. The signature is
+verified before the expiry is trusted, and compared with `timingSafeEqual`.
+Password comparison hashes both sides first so neither content nor length leaks
+through timing. The cookie is `HttpOnly`, `SameSite=Lax`, `Secure` in
+production, and expires after 30 days.
+
+**Known limitation.** There is no cross-instance rate limiting on the password
+form — serverless gives no shared store to hold a counter. A fixed 250 ms delay
+on each failure is the only friction, so the password must be long and random.
+
+**Fails closed.** If `PORTFOLIO_PASSWORD` or `PORTFOLIO_COOKIE_SECRET` is
+missing, the route stays locked and says so. A misconfigured deploy can lock Ben
+out; it cannot expose positions.
 
 ## Portfolio data entry
 
 The Portfolio tab is loaded by CSV import through the Supabase dashboard, into
 the `portfolio_positions` table. This was chosen over an in-app upload form
-specifically to preserve the read-only posture described above: the deployed
-app uses only the anon key, RLS is not enabled on this project's tables, and
-the site is publicly reachable — so a browser upload writing with the anon key
-would have been an unauthenticated write endpoint for anyone who found the URL.
-A server-side upload with the service-role key would have been safe from that
-particular problem but would still have needed its own auth gate, which this
-project does not otherwise have. Importing through the Supabase dashboard adds
-no new write path to the app at all.
+specifically to preserve the read-only posture described above: a browser upload
+writing with the anon key would have been an unauthenticated write endpoint for
+anyone who found the URL. A server-side upload with the service-role key would
+have been safe from that particular problem but would still have needed its own
+auth gate.
+
+That gate now exists (`isPortfolioUnlocked()`), so an in-app upload form has
+become defensible where it previously was not. It still has not been built —
+importing through the Supabase dashboard adds no new write path to the app at
+all, and that remains the smaller surface.
 
 ## IBKR Portfolio integration (tabled)
 
@@ -66,13 +111,23 @@ IBKR, not a third-party wrapper).
 
 ## Data access
 
-- This app uses Supabase's public anon key for reads across all tables. As
-  with any project using this pattern, the anon key should be treated as
-  visible to anyone, since it ships to the client.
-- Row Level Security is not yet enabled on this project's tables. This is a
-  known gap, tracked as a future improvement rather than an oversight —
-  revisit if the project's scope expands (multiple users, a more sensitive
-  data surface, or a genuinely public-facing deployment).
+- This app uses Supabase's public anon key for reads of market data. As with
+  any project using this pattern, the anon key should be treated as visible to
+  anyone, since it ships to the client.
+- **Row Level Security is enabled on the position tables** — `portfolios`,
+  `portfolio_positions`, `portfolio_snapshots`, `ibkr_positions` — with no
+  policy, so the anon key reads nothing from them. See the section above.
+- RLS is deliberately **not** enabled on `stocks`, `stock_quotes`,
+  `stock_fundamentals`, `stock_earnings`, `price_history` or `risk_free_rates`.
+  These are public market data read from the browser by the watchlist; locking
+  them would break the dashboard for no privacy gain. Note that `stocks`
+  carries Ben's own thesis notes, which are opinion rather than holdings and
+  are already visible on the public home page.
+- **Unauthenticated write paths remain**, and are the honest remaining gap:
+  `addStock` in `app/actions.ts` inserts into `stocks` with no auth check, and
+  `app/api/subscribe` and `app/api/notify` let anyone upsert or delete a push
+  subscription or trigger a broadcast. None expose positions. Now that
+  `isPortfolioUnlocked()` exists, it is the natural guard for all three.
 
 ## Dependencies
 
@@ -90,3 +145,7 @@ IBKR, not a third-party wrapper).
 - If this project's scope changes, revisit both the RLS and manual-login
   decisions above — they're reasoned for "one person checking their own
   dashboard a few times a day," not as general-purpose advice.
+- Confirm RLS is still on after any Supabase schema work:
+  `select relname, relrowsecurity from pg_class where relname like 'portfolio%';`
+- Rotate `PORTFOLIO_PASSWORD` / `PORTFOLIO_COOKIE_SECRET` if the link is shared
+  more widely than intended. Changing either invalidates every unlock cookie.

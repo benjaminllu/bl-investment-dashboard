@@ -4,11 +4,13 @@
 -- Backs the Portfolio tab, which holds up to five separate portfolios (e.g. a
 -- Schwab brokerage account and a Vanguard IRA shown side by side).
 --
--- Nothing in the deployed app writes to either table: it uses only the public
--- anon key and is read-only, and RLS is not enabled on this project's tables
--- (see SECURITY.md), so an in-app upload form would have been an
--- unauthenticated write endpoint. Positions are loaded out-of-band — see
--- PORTFOLIO.md for the import instructions.
+-- Nothing in the deployed app writes to either table. Positions are loaded
+-- out-of-band — see PORTFOLIO.md for the import instructions.
+--
+-- Both tables now have RLS enabled with no policy, so the public anon key reads
+-- nothing from them and only the service-role key can. Run
+-- scripts/enable-rls-portfolio.sql after creating them, and see SECURITY.md for
+-- why the page's password gate needs that second layer to mean anything.
 --
 -- This replaces ibkr_positions as the tab's source. The IBKR sync
 -- (scripts/sync-ibkr-positions.js, scripts/ibkr-positions-table.sql) is kept
