@@ -84,19 +84,16 @@ function PeCell({ value }: { value: number | null | undefined }) {
   return <span className="text-foreground">{value.toFixed(1)}</span>;
 }
 
-// Abbreviated year keeps the column narrow while still disambiguating dates
-// that are 12+ months out — the schedule runs to mid-2027, so "May 31" alone
-// was ambiguous against "May 26". Full date stays in the tooltip.
+// MM/DD/YYYY. The full year replaces the old "May 31 '26" form, which packed
+// the year in as an abbreviation to keep the column narrow — the numeric format
+// is shorter than the month name it drops, so w-28 still fits comfortably.
+//
+// The spelled-out date stays in the tooltip: it is the one place that says
+// unambiguously which half is the month, for anyone reading DD/MM out of habit.
 function EarningsCell({ date }: { date: string | null | undefined }) {
   if (!date) return <span className="text-muted-foreground">—</span>;
   // Date-only strings parse as UTC; format in UTC so the day doesn't shift.
   const d = new Date(`${date}T00:00:00Z`);
-  const monthDay = d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-  const yy = d.toLocaleDateString("en-US", { year: "2-digit", timeZone: "UTC" });
   return (
     <span
       title={d.toLocaleDateString("en-US", {
@@ -106,8 +103,12 @@ function EarningsCell({ date }: { date: string | null | undefined }) {
         timeZone: "UTC",
       })}
     >
-      {/* Built as one expression so the apostrophe is data, not JSX text. */}
-      {`${monthDay} '${yy}`}
+      {d.toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+        timeZone: "UTC",
+      })}
     </span>
   );
 }
@@ -270,14 +271,21 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl bg-card">
+    // Capped so a long tab — "All" runs to 130 rows — does not push the rest of
+    // the page off-screen. Viewport-relative rather than a fixed pixel height so
+    // it adapts to the screen instead of wasting a tall monitor. overflow-auto
+    // covers both axes: the horizontal scroll this already had, plus the new
+    // vertical one.
+    <div className="max-h-[60vh] overflow-auto rounded-xl bg-card">
       {/* table-fixed + explicit column widths keep the layout identical across
           watchlist tabs (baselined on the "Index" tab) instead of resizing to
           each tab's content. Company is the one column left without a width, so
           it absorbs whatever slack remains — it already truncates, so it is the
           safest place for the layout to flex. */}
       <table className="w-full table-fixed text-left text-sm">
-        <thead className="bg-muted text-muted-foreground">
+        {/* Sticky so the column labels survive scrolling 130 rows — without it
+            you lose track of which number is P/E TTM and which is P/E Fwd. */}
+        <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
           <tr>
             <SortHeader label="Ticker" sortKey="ticker" sort={sort} onSort={handleSort} className="w-16 px-2 py-1.5" />
             <SortHeader label="Company" sortKey="company" sort={sort} onSort={handleSort} className="px-2 py-1.5" />
