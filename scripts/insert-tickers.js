@@ -11,9 +11,18 @@ for (const line of envContent.split(/\r?\n/)) {
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const FINNHUB_KEY = env.FINNHUB_API_KEY;
 
+// All eight from the batch, including the four already present. The loop skips
+// existing tickers, so listing them keeps the run self-documenting: the output
+// says which were already there rather than silently omitting them.
 const TICKERS = [
-  { ticker: "QQQ",  list: "Index" },
-  { ticker: "DRAM", list: "AI Bottlenecks" },
+  { ticker: "EQX",  list: "I<3MINERS" },   // Equinox Gold
+  { ticker: "APP",  list: "Software" },    // AppLovin
+  { ticker: "FRSH", list: "Software" },    // Freshworks — already present
+  { ticker: "NOW",  list: "Software" },    // ServiceNow — already present
+  { ticker: "WING", list: "Consumer" },    // Wingstop
+  { ticker: "CELH", list: "Consumer" },    // Celsius — already present
+  { ticker: "KO",   list: "Consumer" },    // Coca-Cola — already present
+  { ticker: "MCD",  list: "Consumer" },    // McDonald's
 ];
 
 async function getCompany(ticker) {
