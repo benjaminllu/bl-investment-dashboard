@@ -64,8 +64,11 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
   }, [active]);
 
   return (
-    <div className="overflow-hidden rounded-xl bg-card">
-      <div className="flex border-b border-border">
+    // flex column on lg so the tab row stays pinned and only the list scrolls;
+    // natural height on mobile, where the feed is just the last thing on a
+    // stacked page and has nothing to align to.
+    <div className="flex flex-col overflow-hidden rounded-xl bg-card lg:h-full">
+      <div className="flex shrink-0 border-b border-border">
         {TABS.map((tab) => (
           <button
             key={tab}
@@ -81,7 +84,7 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
         ))}
       </div>
 
-      <div className="p-2">
+      <div className="min-h-0 flex-1 overflow-auto p-2">
         {active === "X / Twitter" && (
           <a
             className="twitter-timeline"

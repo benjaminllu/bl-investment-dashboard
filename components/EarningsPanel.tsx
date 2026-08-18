@@ -17,7 +17,6 @@ function formatDate(iso: string): string {
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
     timeZone: "UTC",
   });
 }
@@ -44,84 +43,129 @@ function formatRevenue(value: number): string {
   return `$${Math.round(value).toLocaleString("en-US")}`;
 }
 
+/**
+ * Rows beyond this are dropped rather than rendered into a scroller nobody
+ * reaches. Finnhub returns up to four forward quarters per ticker, so a
+ * 130-ticker watchlist can produce several hundred — far past the point where
+ * "upcoming" means anything.
+ */
+const MAX_ROWS = 50;
+
+/** Reporting inside this window is near-term enough to read at full contrast. */
+const NEAR_TERM_DAYS = 7;
+
 type Props = {
-  ticker: string;
+  /** Every ticker's earnings, flat and unfiltered. Sorting and the upcoming-only
+   *  filter happen here so callers don't each reimplement them. */
   rows: EarningsRow[];
-  /** Listing currency from stock_fundamentals; gates the per-share figures. */
-  currency: string | null;
+  /** Listing currency per ticker, from stock_fundamentals. Gates the per-share
+   *  figures on a row-by-row basis — see the comment at the gate below. */
+  currencyByTicker: Record<string, string | null>;
+  /** Highlighted, and kept in step with the chart's ticker. */
+  selected: string | null;
+  onSelect: (ticker: string) => void;
   /** The query failed, so emptiness here says nothing about the schedule. */
   unavailable?: boolean;
 };
 
-// Locked height, so selecting a different ticker never moves the content below
-// this panel. Row counts across the watchlist run 0-4 (Finnhub returns at most
-// four forward quarters, and ETFs return none), which previously made the panel
-// swing between a one-line message and a full table on nearly every click.
-// Sized to fit four rows plus the header; anything beyond that scrolls inside
-// rather than growing the card.
-const PANEL_HEIGHT = "h-[168px]";
+/**
+ * The watchlist's next earnings dates, soonest first, across every ticker.
+ *
+ * Deliberately global rather than scoped to the selected ticker. The question
+ * this panel answers at a glance is "who reports next", which is a property of
+ * the whole watchlist — the per-ticker version required knowing which ticker to
+ * click before it could tell you anything, and left four rows of content in a
+ * panel sized for the chart beside it.
+ */
+export default function EarningsPanel({
+  rows,
+  currencyByTicker,
+  selected,
+  onSelect,
+  unavailable,
+}: Props) {
+  const upcoming = rows
+    .filter((r) => daysUntil(r.date) >= 0)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.ticker.localeCompare(b.ticker))
+    .slice(0, MAX_ROWS);
 
-export default function EarningsPanel({ ticker, rows, currency, unavailable }: Props) {
-  if (rows.length === 0) {
+  if (upcoming.length === 0) {
     return (
-      <div className={`${PANEL_HEIGHT} flex flex-col rounded-xl bg-card p-3`}>
+      <div className="flex h-42 flex-col rounded-xl bg-card p-3 lg:h-full">
         <h2 className="text-xs font-medium text-foreground">Upcoming Earnings</h2>
         <p className="flex flex-1 items-center text-xs text-muted-foreground">
           {unavailable
             ? "Earnings data is unavailable — the lookup failed, so this is not a statement about the schedule."
-            : `No scheduled earnings for ${ticker}.`}
+            : "No scheduled earnings across the watchlist."}
         </p>
       </div>
     );
   }
 
-  const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
-  const nextDate = sorted.find((r) => daysUntil(r.date) >= 0)?.date;
-
   return (
-    <div className={`${PANEL_HEIGHT} flex flex-col rounded-xl bg-card p-3`}>
-      <h2 className="mb-1 text-xs font-medium text-foreground">Upcoming Earnings</h2>
+    // Fixed height on mobile so the panel does not grow with the row count;
+    // h-full on lg because the glance row sets one height for all three panels.
+    <div className="flex h-42 flex-col rounded-xl bg-card p-3 lg:h-full">
+      <h2 className="mb-1 shrink-0 text-xs font-medium text-foreground">Upcoming Earnings</h2>
 
       {/* Scrolls in both axes inside the fixed height: cells never wrap, so a
           narrow viewport scrolls sideways instead of growing the panel. */}
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full text-left text-xs">
-          <thead className="text-muted-foreground">
+          <thead className="sticky top-0 z-10 bg-card text-muted-foreground">
             <tr>
+              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Ticker</th>
               <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Date</th>
               <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Quarter</th>
               <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Timing</th>
-              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">EPS Est.</th>
-              <th className="py-0.5 font-medium whitespace-nowrap">Revenue Est.</th>
+              {/* Abbreviated: the full labels were the widest cells in their
+                  columns, and six nowrap columns in a 384px panel cannot spend
+                  70px on a header for a $1.23 value. */}
+              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">EPS</th>
+              <th className="py-0.5 font-medium whitespace-nowrap">Rev</th>
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row) => {
-              const isNext = row.date === nextDate;
+            {upcoming.map((row) => {
               const days = daysUntil(row.date);
+              const isSelected = row.ticker === selected;
+              const currency = currencyByTicker[row.ticker] ?? null;
 
               // Both gates are required, and neither is sufficient alone:
               // TORXF/STM report currency USD but resolve to foreign listings
               // (TXG.TO, STMPA.PA), while BABA matches on symbol but is CNY.
               // The DATE stays valid either way — share classes and ADRs report
               // alongside their home listing — so only the figures are withheld.
-              const symbolMatches = row.sourceSymbol === null || row.sourceSymbol === ticker;
+              //
+              // Compared against the row's OWN ticker rather than the selected
+              // one, now that rows from every ticker share the table.
+              const symbolMatches = row.sourceSymbol === null || row.sourceSymbol === row.ticker;
               const showEstimates = symbolMatches && currency === "USD";
+              const withheld = estimateWithheldReason(symbolMatches, currency, row.sourceSymbol);
 
               return (
                 <tr
-                  key={`${row.date}-${row.quarter ?? "?"}`}
-                  className={`border-t border-border ${isNext ? "text-foreground" : "text-muted-foreground"}`}
+                  key={`${row.ticker}-${row.date}-${row.quarter ?? "?"}`}
+                  onClick={() => onSelect(row.ticker)}
+                  className={`cursor-pointer border-t border-border transition-colors hover:bg-muted ${
+                    days <= NEAR_TERM_DAYS ? "text-foreground" : "text-muted-foreground"
+                  }`}
                 >
+                  {/* Accent marks the selected ticker and nothing else. Recency is
+                      carried by text weight instead, so green keeps meaning
+                      "this is the active one" as it does in every tab row. */}
                   <td
-                    className={`whitespace-nowrap py-1 pr-3 tabular-nums ${isNext ? "font-semibold text-accent" : ""}`}
+                    className={`whitespace-nowrap py-1 pr-3 font-semibold ${
+                      isSelected ? "text-accent" : ""
+                    }`}
                   >
+                    {row.ticker}
+                  </td>
+                  <td className="whitespace-nowrap py-1 pr-3 tabular-nums">
                     {formatDate(row.date)}
-                    {isNext && days >= 0 && (
-                      <span className="ml-1 font-normal text-muted-foreground">
-                        {days === 0 ? "(today)" : days === 1 ? "(tomorrow)" : `(${days}d)`}
-                      </span>
-                    )}
+                    <span className="ml-1 font-normal text-muted-foreground">
+                      {days === 0 ? "(today)" : days === 1 ? "(tmrw)" : `(${days}d)`}
+                    </span>
                   </td>
                   <td className="whitespace-nowrap py-1 pr-3 tabular-nums">
                     {row.quarter && row.year ? `Q${row.quarter} ${row.year}` : "—"}
@@ -133,14 +177,14 @@ export default function EarningsPanel({ ticker, rows, currency, unavailable }: P
                     {showEstimates && row.epsEstimate !== null ? (
                       `$${row.epsEstimate.toFixed(2)}`
                     ) : (
-                      <span title={estimateWithheldReason(symbolMatches, currency, row.sourceSymbol)}>—</span>
+                      <span title={withheld}>—</span>
                     )}
                   </td>
                   <td className="whitespace-nowrap py-1 tabular-nums">
                     {showEstimates && row.revenueEstimate !== null ? (
                       formatRevenue(row.revenueEstimate)
                     ) : (
-                      <span title={estimateWithheldReason(symbolMatches, currency, row.sourceSymbol)}>—</span>
+                      <span title={withheld}>—</span>
                     )}
                   </td>
                 </tr>

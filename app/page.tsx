@@ -118,7 +118,7 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-screen-2xl p-4">
+      <div className="mx-auto max-w-screen-3xl p-4">
         {/* Full width and above the watchlist: this is the 9am briefing, and it
             is the one thing on the page that is read once, in order, rather
             than scanned. Boxing it into the research column would put ten
@@ -128,18 +128,19 @@ export default async function Home() {
           <MarketDigestPanel digest={digestResult.digest} error={digestResult.error} />
         </div>
 
-        <div className="flex flex-col gap-4 items-start lg:flex-row">
-          <div className="min-w-0 w-full flex-1">
-            <WatchlistPanel
-              stocks={stocks}
-              earnings={earningsByTicker}
-              earningsUnavailable={Boolean(earningsError)}
-            />
-          </div>
-          <div className="w-full shrink-0 lg:w-1/4">
+        {/* WatchlistPanel owns the whole layout below the digest, not just the
+            left half: the chart in the glance row and the table under it share
+            one `selected` ticker, so they cannot be split across two siblings of
+            a server component. The news feed has no such coupling and is handed
+            down as a slot. */}
+        <WatchlistPanel
+          stocks={stocks}
+          earnings={earningsByTicker}
+          earningsUnavailable={Boolean(earningsError)}
+          researchFeed={
             <ResearchFeed articles={articles} watchlistNews={watchlistNews} marketNews={marketNews} />
-          </div>
-        </div>
+          }
+        />
       </div>
     </main>
   );

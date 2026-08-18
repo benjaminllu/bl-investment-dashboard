@@ -85,7 +85,9 @@ export default function TickerChart({ symbol, studies, studiesOverrides }: Props
   return (
     <div
       ref={outerRef}
-      className="h-120 w-full overflow-hidden rounded-xl bg-slate-900"
+      // h-120 while stacked on mobile; h-full on lg so the glance row's single
+      // height governs all three panels instead of this one setting its own.
+      className="h-120 w-full overflow-hidden rounded-xl bg-slate-900 lg:h-full"
     />
   );
 }

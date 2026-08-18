@@ -83,9 +83,22 @@ interface Props {
   earnings: Record<string, EarningsRow[]>;
   /** True when the earnings query itself failed, as opposed to returning nothing. */
   earningsUnavailable?: boolean;
+  /**
+   * The news feed, rendered by the page and passed in as a slot.
+   *
+   * It sits in the glance row, which this component lays out, but it shares no
+   * state with the watchlist — so passing it as a node keeps its props (and the
+   * three feeds behind them) out of this component's signature entirely.
+   */
+  researchFeed: React.ReactNode;
 }
 
-export default function WatchlistPanel({ stocks, earnings, earningsUnavailable }: Props) {
+export default function WatchlistPanel({
+  stocks,
+  earnings,
+  earningsUnavailable,
+  researchFeed,
+}: Props) {
   const lists = [
     "All",
     ...Array.from(
@@ -116,6 +129,15 @@ export default function WatchlistPanel({ stocks, earnings, earningsUnavailable }
   const visibleStocks =
     activeList === "All" ? stocks : stocks.filter((s) => s.list === activeList);
 
+  // Flattened across every ticker for the earnings panel, which now answers
+  // "who reports next" for the whole watchlist rather than for one selection.
+  // Deliberately not filtered to visibleStocks: switching category should not
+  // hide an imminent report, which is the one thing this panel exists to catch.
+  const allEarnings = Object.values(earnings).flat();
+  const currencyByTicker = Object.fromEntries(
+    stocks.map((s) => [s.ticker, s.marketCapCurrency ?? null])
+  );
+
   const handleListChange = (list: string) => {
     setActiveList(list);
     const first = list === "All" ? stocks[0] : stocks.find((s) => s.list === list);
@@ -124,45 +146,62 @@ export default function WatchlistPanel({ stocks, earnings, earningsUnavailable }
 
   return (
     <div className="space-y-2">
-      {selected && (
-        <>
-          <div className="flex items-center justify-center gap-2 rounded-lg bg-card px-2">
-            <button
-              onClick={() =>
-                setPresetIndex((i) => (i - 1 + CHART_PRESETS.length) % CHART_PRESETS.length)
-              }
-              aria-label="Previous chart preset"
-              className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-            >
-              ‹
-            </button>
-            <span className="w-28 text-center text-sm font-medium text-foreground/90">
-              {preset.label}
-            </span>
-            <button
-              onClick={() => setPresetIndex((i) => (i + 1) % CHART_PRESETS.length)}
-              aria-label="Next chart preset"
-              className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-            >
-              ›
-            </button>
+      {/* The glance row. One height governs all three panels on lg, so the news
+          rail can no longer dead-end hundreds of pixels above the chart beside
+          it — the old layout let a viewport-relative left column (60vh table)
+          sit next to a content-relative right one, two units that cannot
+          converge. Below lg they stack and each keeps its own natural height. */}
+      <div className="flex flex-col gap-2 lg:h-120 lg:flex-row">
+        {selected && (
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-card px-2">
+              <button
+                onClick={() =>
+                  setPresetIndex((i) => (i - 1 + CHART_PRESETS.length) % CHART_PRESETS.length)
+                }
+                aria-label="Previous chart preset"
+                className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                ‹
+              </button>
+              <span className="w-28 text-center text-sm font-medium text-foreground/90">
+                {preset.label}
+              </span>
+              <button
+                onClick={() => setPresetIndex((i) => (i + 1) % CHART_PRESETS.length)}
+                aria-label="Next chart preset"
+                className="flex min-h-11 min-w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                ›
+              </button>
+            </div>
+            {/* flex-1 only from lg: on mobile the column is content-sized, and a
+                zero flex-basis there would collapse the chart to nothing. */}
+            <div className="lg:min-h-0 lg:flex-1">
+              <TickerChart
+                symbol={selected}
+                studies={preset.studies}
+                studiesOverrides={preset.studiesOverrides}
+              />
+            </div>
           </div>
-          <TickerChart
-            symbol={selected}
-            studies={preset.studies}
-            studiesOverrides={preset.studiesOverrides}
-          />
+        )}
+
+        <div className="w-full shrink-0 lg:w-96">
           <EarningsPanel
-            ticker={selected}
-            rows={earnings[selected] ?? []}
-            currency={
-              stocks.find((s) => s.ticker === selected)?.marketCapCurrency ?? null
-            }
+            rows={allEarnings}
+            currencyByTicker={currencyByTicker}
+            selected={selected}
+            onSelect={setSelected}
             unavailable={earningsUnavailable}
           />
-        </>
-      )}
+        </div>
 
+        <div className="w-full shrink-0 lg:w-1/4">{researchFeed}</div>
+      </div>
+
+      {/* Full width now that nothing sits beside it. This is the densest thing
+          on the page and had been running at 75% while a rail idled next to it. */}
       <div className="overflow-hidden rounded-xl bg-card">
         {/* Arrows sit outside the scroller rather than floating over it, so they
             never cover a category name. They render only when the row actually
