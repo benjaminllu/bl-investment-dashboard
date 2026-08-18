@@ -10,11 +10,42 @@ interface Props {
 const ET = "America/New_York";
 
 /**
- * The nine cells beside the lead story. Nine is 3x3, which completes both the
- * three-column layout and the five-column one, so the grid never ends on a
- * ragged row.
+ * Four major stories at 60% of the width, six minor ones at 40%.
+ *
+ * The underlying grid is ten columns by six rows, which is the smallest one
+ * that divides both ways: a major cell is 3x3 (so two fit across 60% and two
+ * fit down), a minor cell is 2x2 (so two fit across 40% and three fit down).
+ * Four plus six is the generator's full ten, so the grid never ends ragged.
  */
-const SECONDARY_SLOTS = 9;
+type Size = "major" | "minor";
+
+const MAJOR_SLOTS = 4;
+
+/**
+ * These two tables are also the source of truth for how many cells exist in
+ * each band — the grid iterates them rather than a separate count.
+ *
+ * Explicit placement, because auto-flow cannot produce this shape: dropping
+ * four 3x3 cells into a ten-column grid puts the third one alongside the first
+ * two rather than beneath them.
+ *
+ * Written as whole static strings rather than composed from indices —
+ * Tailwind scans source text, so `xl:col-start-${n}` would generate nothing.
+ */
+const MAJOR_PLACEMENT = [
+  "xl:col-start-1 xl:row-start-1",
+  "xl:col-start-4 xl:row-start-1",
+  "xl:col-start-1 xl:row-start-4",
+  "xl:col-start-4 xl:row-start-4",
+];
+const MINOR_PLACEMENT = [
+  "xl:col-start-7 xl:row-start-1",
+  "xl:col-start-9 xl:row-start-1",
+  "xl:col-start-7 xl:row-start-3",
+  "xl:col-start-9 xl:row-start-3",
+  "xl:col-start-7 xl:row-start-5",
+  "xl:col-start-9 xl:row-start-5",
+];
 
 function formatDay(isoDate: string): string {
   // Parsed as UTC noon rather than midnight so the date cannot slip a day when
@@ -38,16 +69,16 @@ function formatTime(value: string | number | null): string | null {
 }
 
 /** Rank, then category, then any watchlist symbols — the cell's index line. */
-function CellHead({ item, size }: { item: DigestItem; size: "lead" | "small" }) {
-  const lead = size === "lead";
+function CellHead({ item, size }: { item: DigestItem; size: Size }) {
+  const major = size === "major";
   return (
-    <div className={`flex items-baseline gap-2 ${lead ? "mb-1.5" : "mb-1"}`}>
+    <div className={`flex items-baseline gap-2 ${major ? "mb-1.5" : "mb-1"}`}>
       {/* The rank is information, not ornament, so it stays at /50 — measured
           at 5.2:1 on the card background, where /40 would fall to 3.8:1 and
           miss AA for text this size. */}
       <span
         className={`shrink-0 font-semibold leading-none tabular-nums text-foreground/50 ${
-          lead ? "text-5xl" : "text-sm"
+          major ? "text-2xl" : "text-sm"
         }`}
       >
         {String(item.rank).padStart(2, "0")}
@@ -64,19 +95,17 @@ function CellHead({ item, size }: { item: DigestItem; size: "lead" | "small" }) 
   );
 }
 
-function Provenance({ item, size }: { item: DigestItem; size: "lead" | "small" }) {
+function Provenance({ item }: { item: DigestItem }) {
   const time = formatTime(item.articleDatetime);
-  // In the small cells mt-auto pins this to the bottom, so attribution sits on
-  // one baseline across a row of uneven headlines. The lead is three rows tall
-  // and its story does not fill that, so the same trick would strand the line
-  // at the far edge of an empty region — there it just follows the text, and
-  // the leftover space reads as deliberate margin instead of a gap.
+  // mt-auto pins this to the bottom so attribution sits on one baseline across
+  // a row of uneven headlines.
+  //
+  // This used to be skipped for the lead, which was three rows tall and whose
+  // story did not fill them — pinning there stranded the line at the far edge
+  // of an empty region. With four equal majors the cells are close to full, so
+  // the shared baseline is worth having and the exception is gone.
   return (
-    <p
-      className={`flex gap-1 pt-1 text-xs uppercase tracking-wide text-muted-foreground ${
-        size === "lead" ? "" : "mt-auto"
-      }`}
-    >
+    <p className="mt-auto flex gap-1 pt-1 text-xs uppercase tracking-wide text-muted-foreground">
       <span className="truncate">{item.source}</span>
       {time && <span className="shrink-0">· {time}</span>}
     </p>
@@ -90,26 +119,32 @@ function Provenance({ item, size }: { item: DigestItem; size: "lead" | "small" }
  * panel spends — the ranking itself is carried entirely by scale, weight and
  * position, per the One Signal Rule in DESIGN.md.
  */
-function Cell({ item, size }: { item: DigestItem; size: "lead" | "small" }) {
-  const lead = size === "lead";
+function Cell({ item, size, placement }: { item: DigestItem; size: Size; placement: string }) {
+  const major = size === "major";
   return (
-    <li className={lead ? "md:col-span-3 xl:col-span-2 xl:row-span-3" : undefined}>
+    <li
+      className={
+        major
+          ? `md:col-span-1 xl:col-span-3 xl:row-span-3 ${placement}`
+          : `md:col-span-1 xl:col-span-2 xl:row-span-2 ${placement}`
+      }
+    >
       <a
         href={item.url}
         target="_blank"
         rel="noopener noreferrer"
         className={`group flex h-full flex-col bg-card transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
-          lead ? "p-3 xl:p-4" : "p-2"
+          major ? "p-3" : "p-2"
         }`}
       >
         <CellHead item={item} size={size} />
 
         <p
           className={`font-semibold text-foreground transition-colors group-hover:text-accent ${
-            lead
-              ? // Tight tracking at display size is the editorial move that makes
-                // the lead read as a lead. Body copy keeps normal tracking.
-                "text-xl leading-[1.12] tracking-tight xl:text-2xl"
+            major
+              ? // Three lines at ~560px wide takes a ~110-character headline
+                // whole, so the majors rarely truncate at all.
+                "line-clamp-3 text-base leading-snug xl:text-lg"
               : "line-clamp-2 text-xs leading-tight"
           }`}
         >
@@ -118,13 +153,15 @@ function Cell({ item, size }: { item: DigestItem; size: "lead" | "small" }) {
 
         <p
           className={`text-muted-foreground ${
-            lead ? "mt-2 max-w-prose text-sm leading-normal" : "mt-1 line-clamp-2 text-xs leading-tight"
+            major
+              ? "mt-2 line-clamp-3 text-sm leading-snug"
+              : "mt-1 line-clamp-2 text-xs leading-tight"
           }`}
         >
           {item.whyItMatters}
         </p>
 
-        <Provenance item={item} size={size} />
+        <Provenance item={item} />
       </a>
     </li>
   );
@@ -174,17 +211,20 @@ export default function MarketDigestPanel({ digest, error }: Props) {
     );
   }
 
-  const [lead, ...rest] = digest.items;
-  const secondary = rest.slice(0, SECONDARY_SLOTS);
   const stale = digest.date !== easternToday();
   const generatedTime = formatTime(digest.generatedAt);
 
-  // The hairlines are the container showing through a 1px gap, so any grid cell
-  // left unfilled would paint as a solid border-coloured block. A run that found
-  // fewer than ten stories is legitimate (the generator's floor is five), so the
-  // shortfall is padded out. Hidden below md, where the grid is a single column
-  // and a filler would be an empty row.
-  const fillers = Math.max(0, SECONDARY_SLOTS - secondary.length);
+  // One entry per grid position rather than per story. The hairlines are the
+  // container showing through a 1px gap, so a position left unfilled would paint
+  // as a solid border-coloured block — and with explicit placement a missing
+  // story leaves a hole rather than letting the rest shuffle up. A run that
+  // found fewer than ten is legitimate (the generator's floor is five), so every
+  // position renders either a story or a filler.
+  const slots = [...MAJOR_PLACEMENT, ...MINOR_PLACEMENT].map((placement, i) => ({
+    placement,
+    size: (i < MAJOR_SLOTS ? "major" : "minor") as Size,
+    item: digest.items[i] ?? null,
+  }));
 
   return (
     <Panel
@@ -213,17 +253,26 @@ export default function MarketDigestPanel({ digest, error }: Props) {
           with. Full bleed, so the rules meet the panel edge instead of floating
           inside a margin.
 
-          Five columns by three rows is fifteen cells: the lead takes two by
-          three and the other nine take the remaining three by three, so a
-          ten-item ranking lands exactly with no orphan row. */}
-      <ol className="grid gap-px bg-border md:grid-cols-3 xl:grid-cols-5 xl:grid-rows-3">
-        <Cell item={lead} size="lead" />
-        {secondary.map((item) => (
-          <Cell key={`${item.rank}-${item.url}`} item={item} size="small" />
-        ))}
-        {Array.from({ length: fillers }, (_, i) => (
-          <li key={`filler-${i}`} aria-hidden className="hidden bg-card md:block" />
-        ))}
+          Ten columns by six rows: the four majors are 3x3 and fill the left
+          60%, the six minors are 2x2 and fill the right 40%. Below xl the split
+          is meaningless at that width, so the cells drop their spans and run as
+          a plain two-column list in rank order — majors first. */}
+      <ol className="grid gap-px bg-border md:grid-cols-2 xl:grid-cols-10 xl:grid-rows-6">
+        {slots.map(({ placement, size, item }, i) =>
+          item ? (
+            <Cell key={`${item.rank}-${item.url}`} item={item} size={size} placement={placement} />
+          ) : (
+            <li
+              key={`filler-${i}`}
+              aria-hidden
+              className={`hidden bg-card md:block ${
+                size === "major"
+                  ? `xl:col-span-3 xl:row-span-3 ${placement}`
+                  : `xl:col-span-2 xl:row-span-2 ${placement}`
+              }`}
+            />
+          )
+        )}
       </ol>
     </Panel>
   );
