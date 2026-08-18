@@ -1,0 +1,53 @@
+name: Generate Market Digest
+
+on:
+  schedule:
+    # Target: 9:00 AM ET, year round.
+    #
+    # Two problems stack here. GitHub cron is UTC only, so 9am ET is 13:00 UTC
+    # under EDT but 14:00 UTC under EST. And GitHub throttles scheduled runs
+    # hard — this repo's own history has runs landing 50-195 minutes apart
+    # (DEPENDENCIES.md, "GitHub Actions"), so a single entry can easily miss its
+    # hour entirely.
+    #
+    # So four entries are fired across both candidate hours, and the script
+    # decides which one does the work: it skips any run before 9am Eastern, and
+    # skips a day that already has a digest. Exactly one writes; the other three
+    # cost one Supabase query and exit. More entries is simply more chances that
+    # one of them is dispatched near 9:00 rather than an hour late.
+    #
+    # This buys a good chance, not a guarantee. What actually happened is always
+    # in the panel's own "generated HH:MM ET" stamp, which is read from the row
+    # rather than from this schedule.
+    - cron: "0 13 * * *"
+    - cron: "30 13 * * *"
+    - cron: "0 14 * * *"
+    - cron: "30 14 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rewrite today's digest even if one already exists"
+        type: boolean
+        default: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate digest
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          # New secret — the other two workflows do not need it.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/generate-market-digest.js ${{ inputs.force && '--force' || '' }}

@@ -17,7 +17,7 @@ This is a personal project — no SLA is expected from any of the unauthenticate
 | [Yahoo Finance](#yahoo-finance-unofficial) | S&P 500 futures (ES), daily price history | None (requires User-Agent) | — | Unofficial, unpublished | 300s (banner); batch script for history |
 | [CNN Fear & Greed](#cnn-fear--greed-index-unofficial) | Sentiment index | None (requires User-Agent) | — | Unofficial, unpublished | 1800s |
 | [Cboe](#cboe-vix--vixeq) | VIX / VIXEQ | None (requires User-Agent) | — | Unpublished | 3600s |
-| [Google Gemini](#google-gemini) | AI summary | API key (query param) | `GEMINI_API_KEY` | Free-tier quota (model/tier-dependent) | 900s |
+| [Google Gemini](#google-gemini) | AI summary, daily market digest | API key (query param) | `GEMINI_API_KEY` | Free-tier quota (model/tier-dependent) | 900s (`/ai-summary`); digest is written once a day to Supabase, not cached in-app |
 | [Substack](#substack) | Research feed | None | — | Unpublished, per-publication | No cache (`no-store`) |
 | [TradingView](#tradingview) | Chart widget | None | — | N/A (client embed) | N/A |
 | [Twitter/X](#twitterx) | Timeline embed | None | — | N/A (client embed) | N/A |
@@ -136,6 +136,16 @@ VIXEQ (Cboe S&P 500 Constituent Volatility Index) is a newer index (2024/2025 la
 
 ### Google Gemini
 `app/ai-summary/page.tsx` calls `generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` to write a one-paragraph analysis of the latest market headline. Key via `key=` query param (`GEMINI_API_KEY`). Free tier (per `README.md`); exact current quota not independently re-verified here since Gemini's free-tier limits are model- and account-tier-specific and change periodically — check Google AI Studio's own quota page if this starts failing. Cached via `unstable_cache` with a 900s revalidate, and **only successful generations are cached** — a failed request retries fresh on the next load rather than being stuck behind the cache window until it expires.
+
+**Second caller — the daily market digest.** `scripts/generate-market-digest.js` calls the same model to rank the ten most important stories of the last 24 hours for the AI Market Summary block on the home page, once a day at 9am ET via `.github/workflows/market-digest.yml`. This is the only integration that needs `GEMINI_API_KEY` set as a **GitHub Actions secret** as well as in Vercel.
+
+Notes specific to that call, measured rather than assumed:
+
+* It uses **structured output** — `generationConfig.responseMimeType: "application/json"` plus a `responseSchema` — which the `v1beta` endpoint honours for `gemini-2.5-flash`.
+* 2.5-flash bills its reasoning tokens against `maxOutputTokens`. A run over ~60 headlines was measured at **~6.1k thinking tokens against ~400 of answer**, so the budget is set to 16000. A budget sized to the answer alone returns `finishReason: MAX_TOKENS` with truncated, unparseable JSON.
+* Newer models on this account (`gemini-3.x-flash`) were returning **503 UNAVAILABLE** when this was written, which is why the digest deliberately stays on 2.5-flash rather than following the newest release.
+* 503s on this endpoint are transient and common; the script retries three times with backoff before giving up for the day.
+* The model never supplies a headline, URL, or source — it returns an **index into the candidate list** it was given, so it can misrank a real story but cannot invent one. Ticker suggestions are intersected with the `stocks` watchlist before they are stored.
 
 ---
 

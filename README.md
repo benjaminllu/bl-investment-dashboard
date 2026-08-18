@@ -28,6 +28,8 @@ Data flows through two separate paths:
 - Market news → Finnhub general news endpoint
 - AI Summary → Google Gemini (on AI Summary page only; response cached ~15 min per article, so a repeated top headline doesn't re-generate)
 
+(The home page's **AI Market Summary** block is *not* on this live path — it is written once a day by a background job and read from Supabase like any other pre-fetched table.)
+
 **On-demand (manual, whenever positions change):**
 - Portfolio positions → broker CSV export, parsed and written into `portfolio_positions` by `scripts/import-portfolio-csv.js` (the IBKR gateway sync that previously filled this is tabled — see below)
 - Portfolio P&L is computed by joining those imported positions against the already-live `stock_quotes` table, so prices stay current even though positions only refresh when you import
@@ -78,6 +80,7 @@ Data flows through two separate paths:
 | `stock_news` | Filtered news articles per ticker (written by background job) |
 | `stock_fundamentals` | Market cap and insider sentiment per ticker (written by the daily fundamentals job) — one row per ticker, overwritten, no history |
 | `stock_earnings` | Upcoming earnings dates per ticker (written by the daily fundamentals job) — many rows per ticker, whole set replaced each run |
+| `market_digest` | The ten ranked stories behind the home page's AI Market Summary (written by the daily 9am ET digest job) — ten rows per day, 90 days retained |
 | `posts` | Personal research notes |
 | `push_subscriptions` | Browser push notification subscriptions (in progress) |
 | `portfolios` | The five Portfolio slots and their labels — `slot`, `label`, `broker` |
@@ -86,11 +89,18 @@ Data flows through two separate paths:
 
 ## Background Jobs
 
-Two GitHub Actions cron jobs, split by how fast the underlying data actually moves. Both read all tickers from `stocks`, sleep 1.1s between Finnhub calls to respect the 60 req/min limit, and upsert to Supabase. Both require the same three secrets: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FINNHUB_API_KEY`.
+Three GitHub Actions cron jobs, split by how fast the underlying data actually moves. All three write to Supabase and share `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `FINNHUB_API_KEY`; the digest job additionally needs `GEMINI_API_KEY`. The two ticker jobs read all symbols from `stocks` and sleep 1.1s between Finnhub calls to respect the 60 req/min limit.
 
 **`scripts/refresh-data.js` — every 30 min.** Quote + recent news per ticker. At 126 tickers × 2 calls × 1.1s ≈ 4.6 minutes per run.
 
 **`scripts/refresh-fundamentals.js` — daily.** Market cap (`/stock/profile2`), insider sentiment (`/stock/insider-sentiment`), and upcoming earnings (`/calendar/earnings`) per ticker, written to `stock_fundamentals` and `stock_earnings`. At 126 tickers × 3 calls × 1.1s ≈ 6.9 minutes per run. This is deliberately *not* folded into the 30-minute job: insider sentiment is monthly data lagging 1-2 months and earnings dates move rarely, so re-fetching either every 30 minutes would triple that job's runtime for data that cannot have changed. Requires `scripts/stock-fundamentals-table.sql` and `scripts/stock-earnings-table.sql` to have been run once first.
+
+**`scripts/generate-market-digest.js` — daily, ~9am ET.** Ranks the ten most important stories of the last 24 hours into `market_digest`, which the **AI Market Summary** block on the home page reads. One Finnhub call for the general wire, the watchlist's own `stock_news` rows as extra candidates, then one Gemini call to rank them. Requires `scripts/market-digest-table.sql` to have been run once first.
+
+Two things about it are worth knowing:
+
+* **The model cannot invent a story.** It is handed a numbered candidate list and returns *indices* into it, so headline, URL and source always come from the wire. What it contributes is the ordering, a category, and one sentence on why the story matters. Ticker suggestions are intersected with the `stocks` watchlist before being stored.
+* **"9am" is a target, not a guarantee.** GitHub cron is UTC-only while ET is not, and GitHub throttles scheduled runs (see [`DEPENDENCIES.md`](DEPENDENCIES.md)). The workflow fires four times across 13:00–14:30 UTC; the script skips any run before 9am Eastern and skips a day already done, so exactly one writes. The panel shows the timestamp it actually ran at, and badges the digest "not today's" if the job never succeeded that day rather than showing yesterday's as if it were fresh.
 
 Coverage for both fundamentals metrics is partial by nature — ETFs have no Finnhub profile, and insider sentiment comes from SEC Form 4 filings so foreign listings and some micro-caps return nothing. Missing values render as an em-dash rather than being hidden.
 

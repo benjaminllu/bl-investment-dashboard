@@ -68,7 +68,36 @@ const CLICKBAIT_PATTERNS = [
   /\bwarren\s+buffett\s+(would|stocks?|buys?)\b/i,
 ];
 
+// Finnhub's company-news endpoint answers with opaque redirect URLs
+// (finnhub.io/api/news?id=...), so BLOCKED_DOMAINS can never match on those. The
+// `source` field is populated reliably on both endpoints, so it is checked too.
+// Normalised to letters and digits, which folds "Barron's"/"Barrons" and
+// "The Motley Fool"/"Motley Fool" onto one key.
+// Kept in step with scripts/newsFilter.js, which the Node jobs use.
+const BLOCKED_SOURCES = new Set([
+  "wsj",
+  "thewallstreetjournal",
+  "wallstreetjournal",
+  "barrons",
+  "ft",
+  "financialtimes",
+  "seekingalpha",
+  "thestreet",
+  "investors",
+  "investorsbusinessdaily",
+  "ibd",
+  "fool",
+  "themotleyfool",
+  "motleyfool",
+  "marketbeat",
+]);
+
+function normaliseSource(source: string): string {
+  return source.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 function isLowQuality(item: FinnhubArticle): boolean {
+  if (BLOCKED_SOURCES.has(normaliseSource(item.source ?? ""))) return true;
   try {
     const hostname = new URL(item.url).hostname.replace(/^www\./, "");
     if (BLOCKED_DOMAINS.has(hostname)) return true;
@@ -87,12 +116,15 @@ export async function fetchWatchlistNews(): Promise<NewsItem[]> {
 
   if (error || !data) return [];
 
+  // Rows already on disk were written before the source-name check existed, so
+  // the filter is applied on read as well — otherwise the 57 SeekingAlpha rows
+  // sitting in stock_news keep rendering until something overwrites them.
   const seen = new Set<string>();
   return data
     .filter((item) => {
       if (seen.has(item.url)) return false;
       seen.add(item.url);
-      return true;
+      return !isLowQuality({ ...item, image: item.image ?? "" } as FinnhubArticle);
     })
     .slice(0, 10)
     .map((item) => ({

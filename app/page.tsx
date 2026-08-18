@@ -4,6 +4,8 @@ import { supabase } from "@/lib/supabase";
 import ResearchFeed from "@/components/ResearchFeed";
 import { getLatestArticles } from "@/lib/substack";
 import { fetchWatchlistNews, fetchMarketNews } from "@/lib/finnhubNews";
+import MarketDigestPanel from "@/components/MarketDigestPanel";
+import { fetchMarketDigest } from "@/lib/marketDigest";
 
 export default async function Home() {
   const [
@@ -107,15 +109,25 @@ export default async function Home() {
     return { ...stock, price, changePct, updatedAt, ...fundamental, nextEarnings };
   });
 
-  const [articles, watchlistNews, marketNews] = await Promise.all([
+  const [articles, watchlistNews, marketNews, digestResult] = await Promise.all([
     getLatestArticles(10),
     fetchWatchlistNews(),
     fetchMarketNews(),
+    fetchMarketDigest(),
   ]);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-screen-2xl p-4">
+        {/* Full width and above the watchlist: this is the 9am briefing, and it
+            is the one thing on the page that is read once, in order, rather
+            than scanned. Boxing it into the research column would put ten
+            ranked stories in a quarter-width rail beside a feed that is already
+            unranked market news. */}
+        <div className="mb-4">
+          <MarketDigestPanel digest={digestResult.digest} error={digestResult.error} />
+        </div>
+
         <div className="flex flex-col gap-4 items-start lg:flex-row">
           <div className="min-w-0 w-full flex-1">
             <WatchlistPanel
