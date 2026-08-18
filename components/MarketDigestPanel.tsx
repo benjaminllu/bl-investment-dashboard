@@ -41,13 +41,13 @@ function formatTime(value: string | number | null): string | null {
 function CellHead({ item, size }: { item: DigestItem; size: "lead" | "small" }) {
   const lead = size === "lead";
   return (
-    <div className={`flex items-baseline gap-2 ${lead ? "mb-2" : "mb-1.5"}`}>
+    <div className={`flex items-baseline gap-2 ${lead ? "mb-1.5" : "mb-1"}`}>
       {/* The rank is information, not ornament, so it stays at /50 — measured
           at 5.2:1 on the card background, where /40 would fall to 3.8:1 and
           miss AA for text this size. */}
       <span
         className={`shrink-0 font-semibold leading-none tabular-nums text-foreground/50 ${
-          lead ? "text-6xl" : "text-base"
+          lead ? "text-5xl" : "text-sm"
         }`}
       >
         {String(item.rank).padStart(2, "0")}
@@ -73,7 +73,7 @@ function Provenance({ item, size }: { item: DigestItem; size: "lead" | "small" }
   // the leftover space reads as deliberate margin instead of a gap.
   return (
     <p
-      className={`flex gap-1 pt-2 text-xs uppercase tracking-wide text-muted-foreground ${
+      className={`flex gap-1 pt-1 text-xs uppercase tracking-wide text-muted-foreground ${
         size === "lead" ? "" : "mt-auto"
       }`}
     >
@@ -99,7 +99,7 @@ function Cell({ item, size }: { item: DigestItem; size: "lead" | "small" }) {
         target="_blank"
         rel="noopener noreferrer"
         className={`group flex h-full flex-col bg-card transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
-          lead ? "p-4 xl:p-5" : "p-3"
+          lead ? "p-3 xl:p-4" : "p-2"
         }`}
       >
         <CellHead item={item} size={size} />
@@ -109,8 +109,8 @@ function Cell({ item, size }: { item: DigestItem; size: "lead" | "small" }) {
             lead
               ? // Tight tracking at display size is the editorial move that makes
                 // the lead read as a lead. Body copy keeps normal tracking.
-                "text-2xl leading-[1.12] tracking-tight xl:text-3xl"
-              : "line-clamp-3 text-xs leading-snug"
+                "text-xl leading-[1.12] tracking-tight xl:text-2xl"
+              : "line-clamp-2 text-xs leading-tight"
           }`}
         >
           {item.headline}
@@ -118,7 +118,7 @@ function Cell({ item, size }: { item: DigestItem; size: "lead" | "small" }) {
 
         <p
           className={`text-muted-foreground ${
-            lead ? "mt-3 max-w-prose text-base leading-relaxed" : "mt-1 line-clamp-2 text-xs leading-snug"
+            lead ? "mt-2 max-w-prose text-sm leading-normal" : "mt-1 line-clamp-2 text-xs leading-tight"
           }`}
         >
           {item.whyItMatters}
@@ -134,7 +134,7 @@ function Cell({ item, size }: { item: DigestItem; size: "lead" | "small" }) {
 function Panel({ meta, children }: { meta: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="overflow-hidden rounded-xl bg-card">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-4 py-2">
         <div className="flex items-baseline gap-2">
           {/* Uppercase and tracked out: this is the page's lead block and reads
               as a wire masthead rather than another panel label. Size stays at
