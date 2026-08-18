@@ -45,18 +45,6 @@ enough to implement without re-deriving the plan.
       Low risk, low urgency — existing motion is already just
       `transition-colors` color fades, nothing transform-heavy.
 
-## Priority 8 — Forms
-
-- [ ] `components/AddStockForm.tsx`: add a visible `<label htmlFor>` above
-      each of the 5 fields (Ticker, Company, Priority, Latest Update,
-      Thesis), with paired `id`s on the inputs, and a required-indicator
-      (e.g. asterisk) next to Ticker/Company since those are the two
-      `required` fields. Placeholder text can stay as a shorter secondary
-      hint once a label exists. (A first pass at this was drafted and then
-      reverted during the 2026-07-14 session to keep that session's scope to
-      categories 1/2/4/6 — the labeled-input JSX pattern is straightforward
-      to redo when this is picked up.)
-
 ## Priority 10 — Charts
 
 - [ ] `components/FredChart.tsx`: distinguish a genuinely empty data range
