@@ -178,11 +178,7 @@ export default function WatchlistPanel({
             {/* flex-1 only from lg: on mobile the column is content-sized, and a
                 zero flex-basis there would collapse the chart to nothing. */}
             <div className="lg:min-h-0 lg:flex-1">
-              <TickerChart
-                symbol={selected}
-                studies={preset.studies}
-                studiesOverrides={preset.studiesOverrides}
-              />
+              <TickerChart symbol={selected} studies={preset.studies} />
             </div>
           </div>
         )}

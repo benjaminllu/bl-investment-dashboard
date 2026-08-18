@@ -2,13 +2,14 @@
 
 import { useEffect, useRef } from "react";
 
+import type { ChartStudy } from "@/lib/chartPresets";
+
 interface Props {
   symbol: string;
-  studies: string[];
-  studiesOverrides?: Record<string, number | string>;
+  studies: ChartStudy[];
 }
 
-export default function TickerChart({ symbol, studies, studiesOverrides }: Props) {
+export default function TickerChart({ symbol, studies }: Props) {
   const outerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,23 +45,14 @@ export default function TickerChart({ symbol, studies, studiesOverrides }: Props
       // prop would go through the effect below, which tears the iframe down and
       // refetches it on every change — a visible reload per click.
       //
-      // KNOWN ISSUE — the strip renders white rather than dark whenever
-      // studies_overrides is present below, so it looks out of place on the
-      // Momentum preset and correct on the other two (Momentum is the only one
-      // in lib/chartPresets.ts carrying an override). Isolated by elimination
-      // on a standalone page: every study on its own renders a dark strip, the
-      // override on its own renders a white one. It is not a colour problem —
-      // passing the page's hex through backgroundColor/gridColor was tried,
-      // changed nothing, and has been removed.
-      //
-      // POSSIBLE FIX, not yet taken: delete the studiesOverrides line from the
-      // Momentum preset. Check first whether it actually applies — load the
-      // Momentum preset and read the legend top-left of the chart. If it says
-      // MA 200 the override works and deleting it costs the 200-period moving
-      // average, which is probably worth more than a dark strip; if it shows
-      // TradingView's default instead, the override never applied and deleting
-      // it is free. Failing that, dropping withdateranges also removes the
-      // strip, at the cost of the range buttons.
+      // RESOLVED — this used to render white on the Momentum preset only. The
+      // cause was not the strip and not a colour: studies_overrides was making
+      // the widget reject the settings object wholesale and fall back to a bare
+      // light-themed default chart, which also silently dropped every study and
+      // the top toolbar. Fixed by removing studies_overrides entirely and
+      // passing study inputs inside `studies` instead (see lib/chartPresets.ts).
+      // The earlier note guessed the override might be working and be worth
+      // keeping; it never applied at all.
       withdateranges: true,
       // Volume bars under the price. Set explicitly rather than left to the
       // widget's default so the chart does not silently change if TradingView
@@ -68,9 +60,13 @@ export default function TickerChart({ symbol, studies, studiesOverrides }: Props
       // the OBV / Accumulation-Distribution oscillators in the "Volume" preset
       // (lib/chartPresets.ts) — those read volume, they do not show it.
       hide_volume: false,
-      studies,
+      // Normalised to object form for EVERY entry, never a mix. The widget
+      // drops bare-string studies as soon as any object-form study is present
+      // in the same array, silently and with no console error — so a preset
+      // that mixed `{ id, inputs }` with `"MACD@tv-basicstudies"` rendered the
+      // moving averages and no MACD. Converting them all sidesteps that.
+      studies: studies.map((s) => (typeof s === "string" ? { id: s, inputs: {} } : s)),
     };
-    if (studiesOverrides) config.studies_overrides = studiesOverrides;
 
     const script = document.createElement("script");
     script.type = "text/javascript";
@@ -80,7 +76,7 @@ export default function TickerChart({ symbol, studies, studiesOverrides }: Props
     tvContainer.appendChild(script);
 
     outer.appendChild(tvContainer);
-  }, [symbol, studies, studiesOverrides]);
+  }, [symbol, studies]);
 
   return (
     <div
