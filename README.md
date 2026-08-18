@@ -119,9 +119,11 @@ node scripts/import-portfolio-csv.js "Roth Contributory IRA-Positions.csv" --slo
 ```
 
 The import runs locally with the service role key, so the deployed app keeps
-its read-only posture: it uses only the public anon key, and RLS is not enabled
-on this project's tables (see `SECURITY.md`), so an in-app upload form would
-have been a public write endpoint without its own auth gate.
+its read-only posture — it never writes positions. An in-app upload form using
+the public key would have been a public write endpoint without its own auth
+gate (see `SECURITY.md`). The deployed app does use the service role key, but
+only server-side and only to read: `/portfolio` reads the position tables with
+it after the unlock gate, because RLS now blocks the public key from them.
 
 Schwab is supported and verified against a real export; Vanguard is not yet, and
 the script rejects formats it does not recognise rather than guessing. P&L is
@@ -171,5 +173,5 @@ is manual, every time, by design (see `SECURITY.md`).
 ## Security
 
 See [`SECURITY.md`](./SECURITY.md) for secrets handling, the IBKR gateway
-hardening that was done, and known/accepted risks (e.g. no Row Level Security
-on Supabase tables yet).
+hardening that was done, the Row Level Security posture (on for the position
+tables, deliberately off for market data), and known/accepted risks.

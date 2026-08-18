@@ -3,7 +3,7 @@
 This is a personal project. This document summarizes the security practices
 in place — it's a working reference, not a formal vulnerability-disclosure
 policy (this project doesn't accept external security reports). Last
-reviewed: 2026-08-14.
+reviewed: 2026-08-18.
 
 ## Secrets management
 
@@ -27,7 +27,8 @@ reviewed: 2026-08-14.
 
 The dashboard is a public URL that gets shared with family and friends. Every
 page is fine for them to see except `/portfolio`, which exposes share counts,
-cost basis and total net worth. Two independent layers gate it:
+cost basis and total net worth. Two independent layers gate it, and as of
+2026-08-18 both are in place.
 
 1. **Application gate** (`lib/portfolioLock.ts`). `/portfolio` returns a lock
    screen *before running a single Supabase query* when the request carries no
@@ -35,12 +36,25 @@ cost basis and total net worth. Two independent layers gate it:
    RSC flight payload, not merely hidden by CSS.
 2. **Row Level Security** (`scripts/enable-rls-portfolio.sql`). RLS is enabled
    with no policy on `portfolios`, `portfolio_positions`, `portfolio_snapshots`
-   and `ibkr_positions`, so the anon key reads zero rows from them.
+   and `ibkr_positions`, so the publishable key reads zero rows from them.
 
-Layer 1 alone would only be a curtain: the anon key ships to the browser, so
-without layer 2 anyone could bypass the page and query the table directly from
-the devtools console. Layer 2 alone would break the page for Ben. Both are
-required.
+**This was checked, not assumed.** An audit on 2026-08-18 found layer 2 missing
+— the migration had been written months earlier but never run, and the
+publishable key returned all 64 position rows while this document claimed it
+returned none. It was run that day and re-verified from the outside: the same
+query now returns zero rows for all four tables, while the service-role client
+still returns 64/5/1 so the page keeps working. The lesson worth keeping is
+that a migration living in `scripts/` is not a control until someone runs it,
+and this file cannot tell you whether that happened — only the database can.
+
+Layer 1 alone would only be a curtain *if* the publishable key were obtainable.
+Today it is not published anywhere: only server components import
+`lib/supabase.ts` (confirmed across every commit in the repo's history), and
+the key's value does not appear in the production client bundle. But it is a
+`sb_publishable_*` key in a `NEXT_PUBLIC_*` var — a class of credential
+designed to be public — so it becomes world-readable the moment any client
+component imports the browser Supabase client. Layer 2 is what makes that a
+non-event instead of a disclosure.
 
 **Threat model.** This protects against a casual viewer — someone with the link
 who opens devtools. It is not designed against an attacker who has Ben's
@@ -116,28 +130,66 @@ IBKR, not a third-party wrapper).
   anyone, since it ships to the client.
 - **Row Level Security is enabled on the position tables** — `portfolios`,
   `portfolio_positions`, `portfolio_snapshots`, `ibkr_positions` — with no
-  policy, so the anon key reads nothing from them. See the section above.
+  policy, so the publishable key reads nothing from them. Run 2026-08-18 and
+  verified from outside the app on the same day. See the section above.
+- **`push_subscriptions` still has no RLS**, and is not in that migration. The
+  table is currently empty (confirmed with the service-role key, so this is a
+  genuine empty and not a policy denial), which is why nothing is exposed yet.
+  It holds the endpoint and encryption keys needed to push to Ben's browser, so
+  it belongs with the position tables rather than with market data — and it
+  stops being empty the first time Ben enables notifications. One line:
+  `alter table push_subscriptions enable row level security;`
+- Anon *write* privileges on the RLS-less tables are unverified. Supabase's
+  default grants give `anon` INSERT/UPDATE/DELETE and RLS is normally what gates
+  that, so a key holder may be able to tamper with `price_history` (which feeds
+  the risk metrics) or rewrite `stocks`. Check with:
+
+      select table_name, privilege_type from information_schema.role_table_grants
+      where grantee = 'anon' and table_schema = 'public'
+        and privilege_type <> 'SELECT';
+
+  Nothing in this app writes with the anon key, so revoking those is free.
 - RLS is deliberately **not** enabled on `stocks`, `stock_quotes`,
   `stock_fundamentals`, `stock_earnings`, `price_history` or `risk_free_rates`.
   These are public market data read from the browser by the watchlist; locking
   them would break the dashboard for no privacy gain. Note that `stocks`
   carries Ben's own thesis notes, which are opinion rather than holdings and
   are already visible on the public home page.
-- **Unauthenticated write paths remain**, and are the honest remaining gap:
-  `addStock` in `app/actions.ts` inserts into `stocks` with no auth check, and
-  `app/api/subscribe` and `app/api/notify` let anyone upsert or delete a push
-  subscription or trigger a broadcast. None expose positions. Now that
-  `isPortfolioUnlocked()` exists, it is the natural guard for all three.
+- **The unauthenticated write paths are closed.** `app/api/subscribe` and
+  `app/api/notify` now both require a valid unlock cookie via
+  `isPortfolioUnlocked()`. `addStock` and its form are gone: the component was
+  mounted nowhere, so the action was tree-shaken out of every build and was
+  never a live endpoint — but it would have become one the moment the form was
+  rendered, and deleting it is cheaper than remembering that.
+- **Push endpoints are validated before they are stored**
+  (`lib/pushSubscription.ts`). The stored `endpoint` is a URL the server later
+  POSTs to, and `web-push` applies no allowlist of its own, so an unvalidated
+  row was an SSRF primitive with an attacker-chosen destination. Subscriptions
+  are now required to be `https:` on a known push-service host, with
+  correctly-sized encryption keys, and only those three fields are persisted.
+  Both handlers also answer malformed JSON with a 400 rather than a 500, and
+  return generic errors — a raw PostgREST message names tables and columns.
 
 ## Dependencies
 
 - No automated dependency scanning (Dependabot/Snyk) is configured — run
   `npm audit` manually before treating this list as current.
-- Open, low-actionability item: `npm audit` currently flags a
-  moderate-severity advisory in a dependency bundled inside Next.js's own
-  `node_modules` (not a direct project dependency). No fix is available
-  without an upstream Next.js patch; running `npm audit fix --force` for this
-  would downgrade Next.js to an incompatible version and should not be done.
+- Next.js is pinned to **16.2.11** (bumped from 16.2.6 on 2026-08-18). That
+  release closes nine advisories against 16.2.6, of which the ones that
+  actually applied here were the App Router Server Actions DoS
+  (GHSA-m99w-x7hq-7vfj), two response-body cache-confusion issues
+  (GHSA-68g3-v927-f742, GHSA-4633-3j49-mh5q) and the server-function endpoint
+  disclosure (GHSA-955p-x3mx-jcvp). The middleware bypass did not apply (this
+  app has no middleware), nor did the custom-server SSRF (Vercel) or the image
+  optimizer DoS (`next/image` is unused).
+- Open, low-actionability item: three high-severity advisories remain, all in
+  dependencies bundled *inside* Next.js — `postcss` under
+  `node_modules/next/node_modules`, and the optional `sharp` image dependency.
+  Clearing them needs `next@16.3.1`, a larger jump than the security fix
+  required, and neither applies to this app: the PostCSS issues need
+  attacker-controlled CSS at build time, and `sharp`/libvips is only reached
+  through the image optimizer, which is unused. Worth taking on the next
+  routine dependency bump rather than as a security action.
 
 ## What to re-check periodically
 
@@ -145,7 +197,13 @@ IBKR, not a third-party wrapper).
 - If this project's scope changes, revisit both the RLS and manual-login
   decisions above — they're reasoned for "one person checking their own
   dashboard a few times a day," not as general-purpose advice.
-- Confirm RLS is still on after any Supabase schema work:
+- Confirm RLS is on. Check it against the database, not against this file —
+  this file asserted RLS was on for four days while it was off. After any
+  Supabase schema work, re-run:
   `select relname, relrowsecurity from pg_class where relname like 'portfolio%';`
+- Confirm the publishable key is still absent from the client bundle. It is the
+  assumption holding the position tables private until RLS lands:
+  `grep -rl "$NEXT_PUBLIC_SUPABASE_ANON_KEY" .next/static` after a build should
+  match nothing.
 - Rotate `PORTFOLIO_PASSWORD` / `PORTFOLIO_COOKIE_SECRET` if the link is shared
   more widely than intended. Changing either invalidates every unlock cookie.

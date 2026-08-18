@@ -43,10 +43,10 @@ GitHub automatically disables scheduled workflows in **public** repositories aft
 
 ### Supabase
 Hosted Postgres + client library (`@supabase/supabase-js`). Two clients exist, matching different trust levels:
-- `lib/supabase.ts` — anon key, used by the deployed app for all reads. Ships to the browser; treat it as public, same as any anon-key setup.
+- `lib/supabase.ts` — publishable (anon) key, used for market-data reads. Only server components import it today, so the key is not currently in the client bundle — but it is a `NEXT_PUBLIC_*` var of a class designed to be public, so treat it as public and never rely on its absence.
 - `lib/supabase-server.ts` and `scripts/*.js` — service role key (full read/write, bypasses Row Level Security), used only server-side/in scripts, never in client code.
 
-Tables: `stocks`, `stock_quotes`, `stock_news`, `stock_fundamentals`, `stock_earnings`, `posts`, `push_subscriptions`, `portfolios`, `portfolio_positions`, `ibkr_positions` (see `README.md` for the per-table purpose; `ibkr_positions` is retained but no longer read). **RLS is not enabled on any table** — a known, tracked gap per `SECURITY.md`, reasonable for a single-user dashboard but worth revisiting if scope ever changes.
+Tables: `stocks`, `stock_quotes`, `stock_news`, `stock_fundamentals`, `stock_earnings`, `posts`, `push_subscriptions`, `portfolios`, `portfolio_positions`, `ibkr_positions` (see `README.md` for the per-table purpose; `ibkr_positions` is retained but no longer read). **RLS is enabled on the position tables** — `portfolios`, `portfolio_positions`, `portfolio_snapshots`, `ibkr_positions` — with no policy, so the publishable key reads nothing from them (`scripts/enable-rls-portfolio.sql`, run and verified 2026-08-18). It is deliberately off on the market-data tables, which the app reads with the publishable key. `push_subscriptions` is the one gap: no RLS, currently empty. See `SECURITY.md`.
 
 ---
 
@@ -171,7 +171,7 @@ These render entirely client-side via third-party script tags; the app never cal
 ## Notifications
 
 ### Web Push / VAPID
-Browser-native Push API, server side via the `web-push` npm package (`lib/webpush.ts`), configured with a VAPID keypair (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL`). Subscriptions are stored in Supabase (`push_subscriptions` table) via `app/api/subscribe/route.ts`; `app/api/notify/route.ts` sends to all stored subscriptions. This isn't a single external service — `web-push` posts directly to whatever push endpoint each browser vendor's subscription object points at (e.g., Google's FCM for Chrome, Mozilla's push service for Firefox), transparently per-subscription. No app-level rate limit; whatever limits exist are on the vendor push-service side and aren't surfaced to this app.
+Browser-native Push API, server side via the `web-push` npm package (`lib/webpush.ts`), configured with a VAPID keypair (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL`). Subscriptions are stored in Supabase (`push_subscriptions` table) via `app/api/subscribe/route.ts`; `app/api/notify/route.ts` sends to all stored subscriptions. Both routes require a valid portfolio unlock cookie, and stored endpoints are restricted to known push-service hosts over https (`lib/pushSubscription.ts`) — `web-push` will POST to whatever endpoint it is handed, so the allowlist is what stops a stored row becoming an arbitrary outbound request. This isn't a single external service — `web-push` posts directly to whatever push endpoint each browser vendor's subscription object points at (e.g., Google's FCM for Chrome, Mozilla's push service for Firefox), transparently per-subscription. No app-level rate limit; whatever limits exist are on the vendor push-service side and aren't surfaced to this app.
 
 ---
 

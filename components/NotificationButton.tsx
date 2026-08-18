@@ -17,6 +17,7 @@ export default function NotificationButton() {
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if ("serviceWorker" in navigator && "PushManager" in window) {
@@ -30,6 +31,7 @@ export default function NotificationButton() {
 
   async function enable() {
     setLoading(true);
+    setNotice(null);
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") return;
@@ -40,11 +42,21 @@ export default function NotificationButton() {
           process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
         ),
       });
-      await fetch("/api/subscribe", {
+      const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sub.toJSON()),
       });
+      // The server stores subscriptions only for an unlocked session. Without
+      // this check a locked viewer would hold a live browser subscription the
+      // server has no row for, and the button would sit there saying "Disable"
+      // for something that was never enabled. Rolling the browser subscription
+      // back keeps the two ends honest about each other.
+      if (!res.ok) {
+        await sub.unsubscribe();
+        setNotice(res.status === 401 ? "Unlock the portfolio first." : "Could not enable.");
+        return;
+      }
       setSubscribed(true);
     } finally {
       setLoading(false);
@@ -53,16 +65,22 @@ export default function NotificationButton() {
 
   async function disable() {
     setLoading(true);
+    setNotice(null);
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
-        await fetch("/api/subscribe", {
+        const res = await fetch("/api/subscribe", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: sub.endpoint }),
         });
+        // The browser subscription is unsubscribed either way — refusing to turn
+        // notifications off because the session expired would be the wrong way
+        // round. If the row could not be deleted, say so: it is now orphaned and
+        // will keep receiving broadcasts until it is removed while unlocked.
         await sub.unsubscribe();
+        if (!res.ok) setNotice("Turned off here, but the server still has it. Unlock and retry.");
       }
       setSubscribed(false);
     } finally {
@@ -72,7 +90,9 @@ export default function NotificationButton() {
 
   async function sendTest() {
     setSending(true);
-    await fetch("/api/notify", { method: "POST" });
+    setNotice(null);
+    const res = await fetch("/api/notify", { method: "POST" });
+    if (!res.ok) setNotice(res.status === 401 ? "Unlock the portfolio first." : "Send failed.");
     setSending(false);
   }
 
@@ -110,6 +130,7 @@ export default function NotificationButton() {
           {loading ? "Enabling…" : "Enable Notifications"}
         </button>
       )}
+      {notice && <span className="text-xs text-muted-foreground">{notice}</span>}
     </div>
   );
 }

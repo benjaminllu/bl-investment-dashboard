@@ -123,9 +123,11 @@ export default async function PortfolioPage() {
   }
 
   // The three position-bearing tables have RLS enabled with no policy, so the
-  // anon key reads zero rows from them; only the service-role client can. The
-  // market-data tables below stay on the anon client — that data is public and
-  // the watchlist reads it from the browser.
+  // publishable key reads zero rows from them and only the service-role client
+  // can. Enabled and verified 2026-08-18 — it had been documented as done for
+  // months before anyone checked, so if you are relying on it, re-check the
+  // database rather than this comment. The market-data tables below stay on the
+  // anon client: that data is public and the watchlist reads it anyway.
   const [{ data: portfolios, error: portfoliosError }, { data: positions, error: positionsError }] =
     await Promise.all([
       supabaseAdmin

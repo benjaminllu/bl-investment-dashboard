@@ -7,10 +7,11 @@
 -- Nothing in the deployed app writes to either table. Positions are loaded
 -- out-of-band — see PORTFOLIO.md for the import instructions.
 --
--- Both tables now have RLS enabled with no policy, so the public anon key reads
--- nothing from them and only the service-role key can. Run
--- scripts/enable-rls-portfolio.sql after creating them, and see SECURITY.md for
--- why the page's password gate needs that second layer to mean anything.
+-- Both tables have RLS enabled with no policy, so the public key reads nothing
+-- from them and only the service-role key can. Run scripts/enable-rls-portfolio.sql
+-- after creating them -- creating a table does not carry the policy over, and it
+-- went unrun for months once already. See SECURITY.md for why the page's
+-- password gate needs that second layer to mean anything.
 --
 -- This replaces ibkr_positions as the tab's source. The IBKR sync
 -- (scripts/sync-ibkr-positions.js, scripts/ibkr-positions-table.sql) is kept

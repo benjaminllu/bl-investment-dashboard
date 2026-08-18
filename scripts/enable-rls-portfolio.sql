@@ -1,3 +1,9 @@
+-- STATUS: applied 2026-08-18, and verified from outside the app the same day
+-- (publishable key returns zero rows from all four tables; service-role still
+-- returns 64/5/1). Before that it sat here unrun for months while SECURITY.md
+-- described it as done -- re-run the verification query at the bottom rather
+-- than trusting this line.
+--
 -- Run this once in the Supabase SQL editor (Dashboard -> SQL Editor -> New query),
 -- same as how other tables in this project were created.
 --
@@ -11,9 +17,12 @@
 -- ---
 -- The dashboard is a public URL shared with family and friends, and the app's
 -- unlock gate (lib/portfolioLock.ts) only controls what the *page* renders. The
--- Supabase anon key ships to the browser in every page load, so without RLS
--- anyone could skip the page entirely and read positions straight from the
--- devtools console:
+-- Supabase publishable key is a NEXT_PUBLIC_* var of a class meant to be public,
+-- and inlines into the browser bundle the moment any client component imports
+-- lib/supabase.ts. Today none do, so the key is not actually published — but
+-- that is an accident of the current import graph, not a control. Once it ships,
+-- without RLS anyone could skip the page and read positions from the devtools
+-- console:
 --
 --     supabase.from('portfolio_positions').select('*')
 --
