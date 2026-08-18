@@ -14,7 +14,7 @@ export default async function MacroPage() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-screen-2xl space-y-4 p-4">
+      <div className="mx-auto max-w-screen-3xl space-y-4 p-4">
         <h1 className="text-2xl font-bold text-foreground">Macro</h1>
 
         {!hasApiKey ? (

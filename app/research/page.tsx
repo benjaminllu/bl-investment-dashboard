@@ -24,7 +24,7 @@ export default async function ResearchPage() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-screen-2xl p-4">
+      <div className="mx-auto max-w-screen-3xl p-4">
         <h1 className="mb-4 text-2xl font-bold text-foreground">Research</h1>
 
         {error && (

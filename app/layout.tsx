@@ -33,7 +33,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
         <header className="sticky top-0 z-50 bg-background shadow-md shadow-black/40">
-          <div className="mx-auto max-w-screen-2xl px-4 py-2">
+          <div className="mx-auto max-w-screen-3xl px-4 py-2">
             <Suspense fallback={
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="h-5 w-72 animate-pulse rounded bg-muted" />

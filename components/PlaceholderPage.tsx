@@ -11,7 +11,7 @@ export default function PlaceholderPage({
 }: PlaceholderPageProps) {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-screen-2xl p-4">
+      <div className="mx-auto max-w-screen-3xl p-4">
         {/* Unconditional: this component exists only to stand in for a page
             that has not been built, so it is always work in progress. */}
         <div className="mb-4 flex items-center gap-2">

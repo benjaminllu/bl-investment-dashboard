@@ -28,7 +28,7 @@ export default function NavBar() {
 
   return (
     <nav className="border-t border-border bg-background">
-      <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4">
+      <div className="mx-auto flex max-w-screen-3xl items-center justify-between px-4">
         <div className="flex items-center gap-1 overflow-x-auto">
           {NAV_ITEMS.map(({ label, href }) => {
             const active = pathname === href;

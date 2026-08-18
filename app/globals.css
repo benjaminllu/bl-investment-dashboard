@@ -18,6 +18,17 @@
   --ring: #34d399;
 }
 
+/*
+ * The page container. Tailwind ships breakpoints only up to 2xl (96rem /
+ * 1536px), which letterboxed ~380px of unused screen on the 1920px display this
+ * is actually used on. Defined as a breakpoint token rather than an arbitrary
+ * max-w-[...] so the seven pages and the nav that share this width keep taking
+ * it from one place.
+ */
+@theme {
+  --breakpoint-3xl: 120rem;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

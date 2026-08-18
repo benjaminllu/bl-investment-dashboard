@@ -64,7 +64,7 @@ export default async function AISummaryPage() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-screen-2xl p-4">
+      <div className="mx-auto max-w-screen-3xl p-4">
         <div className="mb-4">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-foreground">AI Summary</h1>
