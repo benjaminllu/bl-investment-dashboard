@@ -44,13 +44,11 @@ export default function TickerChart({ symbol, studies, studiesOverrides }: Props
       // prop would go through the effect below, which tears the iframe down and
       // refetches it on every change — a visible reload per click.
       //
-      // Its colour is TradingView's, not ours. Passing the page's `--card` hex
-      // through the widget's `backgroundColor` was tried and reverted: it turned
-      // the chart white, so that option does not take a plain hex. The embed
-      // accepts no other colour knob (`backgroundColor` and `gridColor` are the
-      // only two in its allowlist), and the iframe is cross-origin, so no
-      // stylesheet of ours reaches the strip either. Establish the accepted
-      // format before trying again.
+      // The strip renders white rather than dark whenever studies_overrides is
+      // present below, which is why it looks out of place on the Momentum
+      // preset and not the other two. Isolated by elimination: no study causes
+      // it, the override alone does. Nothing here colours the strip — that was
+      // tried and it is not the cause.
       withdateranges: true,
       // Volume bars under the price. Set explicitly rather than left to the
       // widget's default so the chart does not silently change if TradingView
@@ -75,11 +73,7 @@ export default function TickerChart({ symbol, studies, studiesOverrides }: Props
   return (
     <div
       ref={outerRef}
-      // bg-card rather than the bg-slate-900 that was here: identical value
-      // today, but token-driven, so this frame tracks the rest of the page.
-      // Only visible before the iframe paints — TradingView colours its own
-      // surface once loaded, and we have no way in.
-      className="h-120 w-full overflow-hidden rounded-xl bg-card"
+      className="h-120 w-full overflow-hidden rounded-xl bg-slate-900"
     />
   );
 }
