@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import type { InsiderSummary } from "@/lib/insiderTransactions";
+
 export type Stock = {
   id: string;
   ticker: string;
@@ -19,6 +21,8 @@ export type Stock = {
   latest_update: string;
   updatedAt: string | null;
   list: string | null;
+  /** Notable Section 16 activity in the trailing window; absent for most rows. */
+  insider?: InsiderSummary | null;
 };
 
 function timeAgo(iso: string | null): string {
@@ -113,6 +117,65 @@ function EarningsCell({ date }: { date: string | null | undefined }) {
   );
 }
 
+// Compact money for the insider tooltip: a Form 4 value spans six orders of
+// magnitude, and the column has no room for digits.
+function insiderUsd(value: number | null): string {
+  if (value == null) return "—";
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
+  if (value >= 1e3) return `$${Math.round(value / 1e3)}k`;
+  return `$${Math.round(value)}`;
+}
+
+/**
+ * Notable insider activity, as a count per direction rather than a value.
+ *
+ * Counts, not dollars, because the question this column answers at a glance is
+ * "did anyone act, and which way" — and dollar totals answer it badly. An
+ * executive at a mega-cap trimming a routine slice outsizes a small-cap founder
+ * buying with their own money by two orders of magnitude, so a value-ranked
+ * column would be a market-cap column wearing a disguise. The dollars are in the
+ * tooltip, where there is room to read them in context.
+ *
+ * Buys lead when both directions are present: selling has a dozen innocent
+ * explanations (tax, diversification, a scheduled plan) and buying has one.
+ */
+function InsiderCell({ summary }: { summary: InsiderSummary | null | undefined }) {
+  if (!summary || (!summary.buys && !summary.sells)) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  const detail = summary.events
+    .slice(0, 6)
+    .map((e) => {
+      const flags = [e.isExerciseSale ? "exercise & sell" : null, e.is10b51 ? "10b5-1" : null]
+        .filter(Boolean)
+        .join(", ");
+      return (
+        `${e.date}  ${e.code === "P" ? "BUY " : "SELL"} ${insiderUsd(e.valueUsd)}  ` +
+        `${e.ownerName} (${e.role})${flags ? ` [${flags}]` : ""}`
+      );
+    })
+    .join("\n");
+  const more = summary.events.length > 6 ? `\n+${summary.events.length - 6} more` : "";
+
+  return (
+    <span className="flex items-center gap-1.5 tabular-nums" title={`${detail}${more}`}>
+      {summary.buys > 0 && (
+        <span className={summary.isCluster ? "font-semibold text-accent" : "text-accent"}>
+          {/* The cluster marker is a doubled glyph rather than a colour or a
+              badge: it has to survive being one of eleven columns, and the
+              accent colour is already carrying "this is buying". */}
+          {summary.isCluster ? "▲▲" : "▲"} {summary.buys}
+        </span>
+      )}
+      {summary.sells > 0 && (
+        <span className="text-destructive">▼ {summary.sells}</span>
+      )}
+    </span>
+  );
+}
+
 type SortKey =
   | "ticker"
   | "company"
@@ -124,6 +187,7 @@ type SortKey =
   | "peTtm"
   | "forwardPe"
   | "nextEarnings"
+  | "insider"
   | "updatedAt";
 
 type SortDir = "asc" | "desc";
@@ -174,6 +238,15 @@ function sortValue(stock: Stock, key: SortKey): string | number | null {
     // Parsed to a timestamp rather than compared as a string, matching updatedAt.
     case "nextEarnings":
       return stock.nextEarnings ? new Date(`${stock.nextEarnings}T00:00:00Z`).getTime() : null;
+    // Signed, so one sort puts insider buying at the top and its reverse puts
+    // heavy selling there — which is the whole question this column exists to
+    // answer. Value would be the obvious alternative but ranks a single mega-cap
+    // executive's routine trim above a small-cap founder buying with cash.
+    case "insider": {
+      const insider = stock.insider;
+      if (!insider) return null;
+      return insider.buys - insider.sells;
+    }
     // Sort on the timestamp, not the "2h ago" string, which would order
     // alphabetically.
     case "updatedAt":
@@ -297,6 +370,7 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
             <SortHeader label="P/E TTM" sortKey="peTtm" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
             <SortHeader label="P/E Fwd" sortKey="forwardPe" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
             <SortHeader label="Earnings" sortKey="nextEarnings" sort={sort} onSort={handleSort} className="w-28 px-2 py-1.5" />
+            <SortHeader label="Insider" sortKey="insider" sort={sort} onSort={handleSort} className="w-24 px-2 py-1.5" />
             <SortHeader label="Updated" sortKey="updatedAt" sort={sort} onSort={handleSort} className="w-28 px-2 py-1.5" />
           </tr>
         </thead>
@@ -350,6 +424,9 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
               </td>
               <td className="px-2 py-1.5 tabular-nums">
                 <EarningsCell date={stock.nextEarnings} />
+              </td>
+              <td className="px-2 py-1.5">
+                <InsiderCell summary={stock.insider} />
               </td>
               <td className="px-2 py-1.5 text-muted-foreground">{timeAgo(stock.updatedAt)}</td>
             </tr>

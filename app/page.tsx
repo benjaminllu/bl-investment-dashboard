@@ -6,6 +6,7 @@ import { getLatestArticles } from "@/lib/substack";
 import { fetchWatchlistNews, fetchMarketNews } from "@/lib/finnhubNews";
 import MarketDigestPanel from "@/components/MarketDigestPanel";
 import { fetchMarketDigest } from "@/lib/marketDigest";
+import { fetchInsiderActivity } from "@/lib/insiderTransactions";
 
 export default async function Home() {
   const [
@@ -109,12 +110,25 @@ export default async function Home() {
     return { ...stock, price, changePct, updatedAt, ...fundamental, nextEarnings };
   });
 
-  const [articles, watchlistNews, marketNews, digestResult] = await Promise.all([
+  const [articles, watchlistNews, marketNews, digestResult, insiderResult] = await Promise.all([
     getLatestArticles(10),
     fetchWatchlistNews(),
     fetchMarketNews(),
     fetchMarketDigest(),
+    fetchInsiderActivity(),
   ]);
+
+  // Logged rather than rendered: an empty Insider column and a failed query look
+  // identical in the table, and most rows are legitimately empty. Same reasoning
+  // as the stock_earnings error above.
+  if (insiderResult.error) {
+    console.error(`[home] insider_transactions query failed (${insiderResult.error})`);
+  }
+
+  const stocksWithInsider = stocks.map((stock) => ({
+    ...stock,
+    insider: insiderResult.byTicker[stock.ticker] ?? null,
+  }));
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -134,7 +148,7 @@ export default async function Home() {
             a server component. The news feed has no such coupling and is handed
             down as a slot. */}
         <WatchlistPanel
-          stocks={stocks}
+          stocks={stocksWithInsider}
           earnings={earningsByTicker}
           earningsUnavailable={Boolean(earningsError)}
           researchFeed={

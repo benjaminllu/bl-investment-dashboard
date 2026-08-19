@@ -1,0 +1,50 @@
+name: Screen Insider Transactions
+
+on:
+  schedule:
+    # Target: early morning ET, after the previous day's filings have settled.
+    #
+    # Forms 3/4/5 are exempt from EDGAR's usual 5:30 pm cutoff and keep a same-day
+    # filing date right up to the 10:00 pm ET close, so a day's index is not
+    # complete until after 10 pm. Rather than chase that boundary, this runs the
+    # next morning: 11:00 UTC is 7am EDT / 6am EST, comfortably clear of it in
+    # both, and Form 4 news is already up to two business days old by the time it
+    # is filed, so a few more hours changes nothing.
+    #
+    # Unlike market-digest.yml this needs only ONE cron entry despite the same
+    # GitHub throttling. The script bookmarks itself on the newest index date it
+    # has already stored and processes whatever is missing (up to five days), so a
+    # run GitHub delays by two hours, or drops entirely, is caught up by the next
+    # one instead of losing the day. Firing four times to improve the odds of
+    # landing near a target hour buys nothing here.
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many index days to look back (default 5)"
+        type: string
+        default: "5"
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Screen Form 4 filings
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # A repo VARIABLE, not a secret: the SEC requires this header to name a
+          # real project and contact address, and it is sent in the clear on every
+          # request. It is config that must not be committed to a public repo,
+          # which is not the same thing as a credential.
+          SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+        run: node scripts/screen-insider-transactions.js --days=${{ inputs.days || '5' }}

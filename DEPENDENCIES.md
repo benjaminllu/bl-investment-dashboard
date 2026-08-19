@@ -17,6 +17,7 @@ This is a personal project — no SLA is expected from any of the unauthenticate
 | [Yahoo Finance](#yahoo-finance-unofficial) | S&P 500 futures (ES), daily price history | None (requires User-Agent) | — | Unofficial, unpublished | 300s (banner); batch script for history |
 | [CNN Fear & Greed](#cnn-fear--greed-index-unofficial) | Sentiment index | None (requires User-Agent) | — | Unofficial, unpublished | 1800s |
 | [Cboe](#cboe-vix--vixeq) | VIX / VIXEQ | None (requires User-Agent) | — | Unpublished | 3600s |
+| [SEC EDGAR](#sec-edgar) | Insider transactions (Form 4) | None — descriptive `User-Agent` required | `SEC_USER_AGENT` | 10 req/s per IP, no daily cap | Nightly job writes to Supabase; read live, no app-level cache |
 | [Google Gemini](#google-gemini) | AI summary, daily market digest | API key (query param) | `GEMINI_API_KEY` | Free-tier quota (model/tier-dependent) | 900s (`/ai-summary`); digest is written once a day to Supabase, not cached in-app |
 | [Substack](#substack) | Research feed | None | — | Unpublished, per-publication | No cache (`no-store`) |
 | [TradingView](#tradingview) | Chart widget | None | — | N/A (client embed) | N/A |
@@ -131,6 +132,23 @@ Both files are parsed in full, not just their last rows, and exposed as `vixHist
 VIXEQ (Cboe S&P 500 Constituent Volatility Index) is a newer index (2024/2025 launch per Cboe's own announcement) measuring single-stock implied volatility across S&P 500 constituents, versus VIX's index-level measure — the spread is a dispersion/correlation signal. Same unofficial-endpoint caveat as CNN above: no contract, could change without notice.
 
 ---
+
+### SEC EDGAR
+`scripts/screen-insider-transactions.js` screens Section 16 insider filings (Form 4) for watchlist tickers on the nightly `.github/workflows/screen-insider.yml` run, writing to the `insider_transactions` table; `lib/insiderTransactions.ts` reads the notable ones back into the Insider column of `components/StockTable.tsx`.
+
+**Auth: none, but a `User-Agent` is mandatory.** EDGAR has no key, no registration, and no cost, but it answers `403` — not a throttle — to any request without a descriptive User-Agent naming the project and a contact address. Confirmed directly by calling `data.sec.gov` both ways. It is supplied as `SEC_USER_AGENT` (a repo *variable* in Actions, not a secret: it is sent in the clear on every request, so it is config that merely must not be committed).
+
+**Rate limit: 10 requests/second per IP across all EDGAR domains, no daily cap.** Exceeding it blocks the IP until the rate stays under the threshold for a full 10 minutes — long enough to outlast a nightly run and lose the day — so the script spaces requests 150ms apart, about 1.5x under budget. A typical night uses roughly 5–30 requests total, so the ceiling is never in play.
+
+Three endpoints, all confirmed live rather than from secondhand docs:
+
+- `www.sec.gov/files/company_tickers.json` — the ticker→CIK map (10,387 entries). EDGAR has **no ticker lookup**; everything is CIK-keyed, so this join is mandatory. It writes multi-class symbols with a **dash**, not a dot (`BRK-B`, `BF-B`, `MOG-A`), which is normalised in the script — without that those names silently never match.
+- `www.sec.gov/Archives/edgar/daily-index/YYYY/QTRn/form.YYYYMMDD.idx` — one file per filing day covering the whole market (~11,000 filings, ~1,100 of them Form 4). 2.1 MB raw, **242 KB with `Accept-Encoding: gzip`**. The quarter's `index.json` lists only real filing days, which is what lets the script discover dates rather than guess around weekends and holidays. EDGAR indexes each filing under *every* filer CIK including the **issuer**, which is what makes a watchlist screen possible from one request instead of one per ticker.
+- `www.sec.gov/Archives/edgar/data/{cik}/{accession}.txt` — the filing itself, ~5 KB, with the ownership XML inline. Fetching this directly costs one request where going via the filing's `index.json` to learn the document filename would cost two.
+
+**Timing.** Forms 3/4/5 are exempt from EDGAR's usual 5:30 pm filing cutoff and keep a same-day filing date until the 10:00 pm ET close, so a day's index is not complete until after 10 pm. The job runs the next morning instead of chasing that boundary. Form 4 itself is due by the end of the second business day after the trade, so this data is inherently up to two business days stale — that is the form's deadline, not a defect in the pipeline.
+
+**Stability.** Much better than the unofficial sources above: this is a documented government API with a published fair-access policy, not somebody's undocumented backend. The two things that could still move are the ownership XML schema (currently `X0609`; the script hand-parses it rather than taking an XML dependency, and all schema-shaped code is confined to `parseForm4` and its four helpers) and the daily-index text layout, which the script matches with a regex anchored on the strictly-formed trailing fields rather than by fixed-width columns.
 
 ## AI
 
