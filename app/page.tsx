@@ -5,6 +5,7 @@ import ResearchFeed from "@/components/ResearchFeed";
 import { getLatestArticles } from "@/lib/substack";
 import { fetchWatchlistNews, fetchMarketNews } from "@/lib/finnhubNews";
 import MarketDigestPanel from "@/components/MarketDigestPanel";
+import MoversPanel from "@/components/MoversPanel";
 import { fetchMarketDigest } from "@/lib/marketDigest";
 import { fetchInsiderActivity } from "@/lib/insiderTransactions";
 
@@ -133,13 +134,23 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-screen-3xl p-4">
-        {/* Full width and above the watchlist: this is the 9am briefing, and it
-            is the one thing on the page that is read once, in order, rather
-            than scanned. Boxing it into the research column would put ten
-            ranked stories in a quarter-width rail beside a feed that is already
-            unranked market news. */}
-        <div className="mb-4">
-          <MarketDigestPanel digest={digestResult.digest} error={digestResult.error} />
+        {/* Above the watchlist: this is the 9am briefing, and it is the one
+            thing on the page that is read once, in order, rather than scanned.
+            Boxing it into the research column would put ten ranked stories in a
+            quarter-width rail beside a feed that is already unranked market
+            news. */}
+        {/* The digest gives up ~200px on the right to the movers rail rather
+            than the rail getting its own band: both are read in the same
+            glance, and a full-width strip of six tickers would cost more
+            vertical space than it is worth. Below xl the rail drops beneath the
+            digest, where the two-column digest layout already takes over. */}
+        <div className="mb-4 flex flex-col gap-2 xl:flex-row xl:items-stretch">
+          <div className="min-w-0 flex-1">
+            <MarketDigestPanel digest={digestResult.digest} error={digestResult.error} />
+          </div>
+          <div className="w-full shrink-0 xl:w-48">
+            <MoversPanel stocks={stocks} />
+          </div>
         </div>
 
         {/* WatchlistPanel owns the whole layout below the digest, not just the

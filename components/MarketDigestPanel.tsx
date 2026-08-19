@@ -142,8 +142,10 @@ function Cell({ item, size, placement }: { item: DigestItem; size: Size; placeme
         <p
           className={`font-semibold text-foreground transition-colors group-hover:text-accent ${
             major
-              ? // Three lines at ~560px wide takes a ~110-character headline
-                // whole, so the majors rarely truncate at all.
+              ? // Three lines at ~505px wide takes a ~100-character headline
+                // whole, so the majors rarely truncate at all. (That width is
+                // after the movers rail took ~200px off the panel; it was ~560
+                // when the digest ran the full page.)
                 "line-clamp-3 text-base leading-snug xl:text-lg"
               : "line-clamp-2 text-xs leading-tight"
           }`}
