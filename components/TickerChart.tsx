@@ -35,7 +35,17 @@ export default function TickerChart({ symbol, studies }: Props) {
       interval: "D",
       timezone: "Etc/UTC",
       theme: "dark",
-      style: "1",
+      // Chart type, as TradingView's numeric enum: "0" bars, "1" candles,
+      // "2" line, "3" area, "8" Heikin Ashi, "9" hollow candles.
+      //
+      // Line rather than the widget's candle default. At the sizes this chart
+      // renders — a third of the glance row, often showing a year or more — the
+      // per-bar open/high/low is finer than the pixels available, so candles
+      // read as noise and the trend is what actually carries. The toolbar still
+      // offers every other type; this only sets where each chart opens. Note
+      // the effect below rebuilds the widget whenever the symbol or preset
+      // changes, so a type picked by hand resets on the next selection.
+      style: "2",
       locale: "en",
       allow_symbol_change: true,
       support_host: "https://www.tradingview.com",
