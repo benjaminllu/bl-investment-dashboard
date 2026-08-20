@@ -17,6 +17,7 @@ This is a personal project — no SLA is expected from any of the unauthenticate
 | [Yahoo Finance](#yahoo-finance-unofficial) | S&P 500 futures (ES), daily price history | None (requires User-Agent) | — | Unofficial, unpublished | 300s (banner); batch script for history |
 | [CNN Fear & Greed](#cnn-fear--greed-index-unofficial) | Sentiment index | None (requires User-Agent) | — | Unofficial, unpublished | 1800s |
 | [Cboe](#cboe-vix--vixeq) | VIX / VIXEQ | None (requires User-Agent) | — | Unpublished | 3600s |
+| [KOFIA FreeSIS](#kofia-freesis-korean-retail-leverage-unofficial) | Korean margin debt, deposits, forced sales, KOSPI/KOSDAQ market cap | None (requires User-Agent + Referer) | — | Unofficial, unpublished | 3600s |
 | [SEC EDGAR](#sec-edgar) | Insider transactions (Form 4) | None — descriptive `User-Agent` required | `SEC_USER_AGENT` | 10 req/s per IP, no daily cap | Nightly job writes to Supabase; read live, no app-level cache |
 | [Google Gemini](#google-gemini) | AI summary, daily market digest | API key (query param) | `GEMINI_API_KEY` | Free-tier quota (model/tier-dependent) | 900s (`/ai-summary`); digest is written once a day to Supabase, not cached in-app |
 | [Substack](#substack) | Research feed | None | — | Unpublished, per-publication | No cache (`no-store`) |
@@ -130,6 +131,56 @@ Unauthenticated CSV feed (`home.treasury.gov/resource-center/data-chart-center/i
 Both files are parsed in full, not just their last rows, and exposed as `vixHistory` / `spreadHistory`: they are the source of the all-time distributions behind the Risk page's interpretation paragraphs, and the whole file arrives in the same request either way. As of 2026-07-30 that is 9,239 VIX closes back to 1990-01-02 and 3,045 same-day spread observations back to 2014-06-19 (VIXEQ is the shorter series and bounds the join; its pre-launch values are backfilled by Cboe). Measured on that data, the spread's all-time mean is 13.34 against a 34.14 maximum — which is why `lib/riskNarrative/spread.ts` classifies by percentile rank rather than absolute thresholds.
 
 VIXEQ (Cboe S&P 500 Constituent Volatility Index) is a newer index (2024/2025 launch per Cboe's own announcement) measuring single-stock implied volatility across S&P 500 constituents, versus VIX's index-level measure — the spread is a dispersion/correlation signal. Same unofficial-endpoint caveat as CNN above: no contract, could change without notice.
+
+### KOFIA FreeSIS (Korean retail leverage, unofficial)
+*Added 2026-08-20.* `lib/koreaLeverage.ts` powers the Korean Retail Leverage panel on `/positioning`. KOFIA (한국금융투자협회, the Korea Financial Investment Association) is the body that actually compiles Korean margin statistics — the "신용거래융자 잔고" figures the Korean press quotes are theirs — and [FreeSIS](https://freesis.kofia.or.kr/) is its public statistics portal.
+
+**The endpoint.** FreeSIS is an eXBuilder6 single-page app with no documented API, but every screen in it loads its grid from one JSON endpoint: `POST https://freesis.kofia.or.kr/meta/getMetaDataList.do`, `Content-Type: application/json`, body `{"dmSearch": {…}}`. This was traced by reading the portal's own front-end bundle (`/ui/cpr-lib/user-modules.js`, `registerDataSubmission`), not guessed. Four screens are queried in parallel, each identified by its business-object name in `OBJ_NM`:
+
+| `OBJ_NM` | Screen | What is read |
+|---|---|---|
+| `STATSCU0100000070BO` | 신용공여 잔고 추이 | 신용거래융자 total / KOSPI / KOSDAQ, 예탁증권담보융자 |
+| `STATSCU0100000060BO` | 증시자금추이 | 투자자예탁금, 위탁매매 미수금, 반대매매 금액 and its ratio |
+| `STATSCU0100000020BO` | 유가증권시장 | KOSPI market cap |
+| `STATSCU0100000030BO` | 코스닥시장 | KOSDAQ market cap |
+
+Columns are **positional** (`TMPV1` is the date, `TMPV2` onward are the grid's value columns in header order), so the meaning of every column depends on which screen was asked. Those mappings are recorded at each call site in `lib/koreaLeverage.ts`; there is nothing self-describing in the response to fall back on if they drift.
+
+**Two request parameters are non-obvious and both are mandatory.** `tmpV1` is the period: `D` daily, `M` monthly, `Q` quarterly, `Y` yearly. **FreeSIS silently returns the daily series for any unrecognised code** — `"ZZZ"` and `""` both yield the full 7,180-row daily set — so a wrong period code looks like it worked. (It did: this integration used `"RD"` until the codes were probed one by one. `RD`/`RM` are the keys FreeSIS reports in its *latest-date* metadata, not values it accepts as a period.) `M` needs `yyyyMM` bounds rather than `yyyyMMdd` and returns month-end rows. `tmpV40`/`tmpV41` are the screen's unit selectors, and the server divides every currency column by the **integer value** of that field — `"1"` yields won, `"100000"` yields hundred-thousands of won. Omitting it does not default to won: it returns a row of nulls for every value, with dates intact, which is exactly what a first attempt looks like. The code deliberately requests a coarse unit and multiplies back, because KOSPI+KOSDAQ capitalisation is ~5.3e15 won — inside IEEE-754's exact-integer range but close enough to it to be worth keeping away from.
+
+**Auth: none, but headers matter.** No key and no registration. A browser-like `User-Agent` and a `Referer` of `https://freesis.kofia.or.kr/stat/FreeSIS.do` are required; without them the host answers `307` redirecting to an error page rather than returning an error status, so a naive `res.ok` check would pass on an HTML error document.
+
+**Coverage, confirmed live rather than from docs.** Daily, one row per settlement day. Credit balances run from **1998-07-01** (7,167 rows, ~1 MB) — KOFIA's own footnote says 신용공여 only became possible on that date. 증시자금 runs from 1998-06-18, KOSPI cap from 1998, KOSDAQ cap only from **2000-11-06**. That last date is why `ratio` is null before November 2000: a margin-to-market-cap ratio computed against KOSPI alone would be silently too high rather than obviously missing, so those days get no ratio and the chart line simply begins in 2000. Seven scattered 1998–99 sessions report a total margin balance of exactly `0` between neighbours of ₩240bn; these are gaps rather than readings and are dropped.
+
+**Accuracy check.** The pipeline was validated against a published figure before being built on: it reproduces the record ₩38.6328tn margin balance on 2026-06-24 that the Korean press reported, and the KOSPI/KOSDAQ split reconciles to the total on every row spot-checked.
+
+**Timing.** Credit balances are published on a **settlement-date basis** (결제일 기준), so they trail the index by a session — the panel shows the credit date and the market-cap date separately rather than implying they are the same. New rows appear once per session; `revalidate: 3600` on all four calls, so a visitor is served the last good render rather than waiting on four cold cross-Pacific requests. Note the *page* does not rebuild hourly — the shared market banner’s 300s fetch is the lowest in the tree, so every page in this app regenerates every 5 minutes; the hour lives on the FreeSIS fetches themselves, which is what keeps KOFIA at roughly one request per screen per hour.
+
+**Stability.** Same class as CNN and Yahoo above: an undocumented backend with no contract. Every failure path returns `[]` from `fetchScreen`, and the four screens degrade independently — losing the market-cap calls costs the ratio line, not the panel, and the chart falls back to the won level rather than defaulting to a metric it cannot draw. When the credit screen itself returns nothing, `unavailable` is set and the panel says so instead of rendering zeros.
+
+**The column-shift guard.** Because columns are positional, the one change that would *not* announce itself is KOFIA inserting or reordering a value column: `TMPV2` would quietly start meaning something else and the panel would render a plausible wrong number with no error anywhere. This is not hypothetical — the screen metadata carries a `HEADER_NM_OLD` beside every `HEADER_NM`, the 신용거래대주 group header records a modification in September 2023, and KOFIA's own footnote documents the series changing shape in 2002 and 2007.
+
+Each screen therefore carries an arithmetic identity between the columns actually being read, checked over the 20 newest rows on every fetch; a screen that fails is dropped exactly as if the request had failed. No extra request and no hardcoded expected value is involved — the response checks itself:
+
+| Screen | Identity | Measured over full history | Tolerance |
+|---|---|---|---|
+| credit | total == KOSPI + KOSDAQ | 7,160 rows, worst 2.7e-8 relative | 1e-6 relative |
+| funds | 비중 == forced ÷ **prior day's** receivables | 7,176 rows, worst 0.050pp | 0.15pp |
+| market | foreign share == foreign cap ÷ cap | 2,839 + 6,321 rows, worst 0.0005pp | 0.005pp |
+
+Residuals are entirely the divisor truncation and KOFIA's own rounding (one decimal on the funds ratio, three on the foreign share), so a healthy feed cannot trip the guard while a one-column shift breaks the identity outright.
+
+**The frequency guard** covers the one thing the column check cannot. Because an unrecognised period code falls back to daily, this module could start receiving the monthly series without any column moving — and a monthly series satisfies all three identities perfectly. It would not look broken either: month-end sampling reproduces the level percentile to within 0.1pp, so only the chart detail, the "60d high" window and the records would quietly degrade (a ₩38.02tn record against the true ₩38.63tn). So the median spacing of the newest rows is checked and must stay under 10 days. Across the full daily history the 99.9th-percentile gap is 6 days and only three gaps in 28 years exceed 7; the monthly series never spaces rows closer than 27. Median rather than maximum, so the 11-day Chuseok 2017 closure cannot trip it.
+
+That middle identity is also a correctness note in its own right: **KOFIA's 반대매매 비중 divides by the previous session's receivables, not the same row's** — 미수금 arising on D is liquidated on D+1. Same-day division reproduces their column on only 43% of the history and is out by up to 17pp. Anything pairing that percentage with a receivables figure has to say which day it means; the panel labels it "of prior-day receivables".
+
+`scripts/verifyKoreaLeverage.ts` covers this — it asserts each screen passes intact and is dropped when its columns are shifted in either direction, and `--live` additionally checks the real feed still passes and reconciles:
+
+```
+npx tsc -p tsconfig.verify.json && node .verify-out/scripts/verifyKoreaLeverage.js --live
+```
+
+That is the periodic spot-check for this dependency; run it if the panel's numbers ever look off.
 
 ---
 

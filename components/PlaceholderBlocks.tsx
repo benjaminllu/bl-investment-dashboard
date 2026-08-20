@@ -37,6 +37,64 @@ function BlockIcon() {
   );
 }
 
+function PlaceholderCard({ block }: { block: Block }) {
+  return (
+    <div className="rounded-xl bg-card p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-foreground">{block.label}</h2>
+        <BlockIcon />
+      </div>
+      <p className="text-xs text-muted-foreground">{block.description ?? "Coming soon"}</p>
+    </div>
+  );
+}
+
+/**
+ * Just the blocks, without the page chrome around them.
+ *
+ * Split out so a page that is partly built — Positioning, which pairs a real
+ * Korean-leverage panel with blocks that are still empty — can show the
+ * remaining stubs in the same shape as a page that is entirely unbuilt, instead
+ * of growing a second placeholder style.
+ *
+ * `stacked` turns the grid into a single full-height column of equal rows, for
+ * sitting beside a built panel rather than under one. The row count is the
+ * block count, so the column always divides evenly however many are left; that
+ * is a runtime value, hence the inline `gridTemplateRows` rather than a
+ * `grid-rows-*` utility, which Tailwind can only emit for a literal it sees at
+ * build time.
+ */
+export function PlaceholderGrid({
+  blocks,
+  columns = 4,
+  stacked = false,
+}: {
+  blocks: Block[];
+  columns?: 3 | 4;
+  stacked?: boolean;
+}) {
+  if (stacked) {
+    return (
+      <div
+        className="grid h-full gap-3"
+        style={{ gridTemplateRows: `repeat(${blocks.length}, minmax(0, 1fr))` }}
+      >
+        {blocks.map((block) => (
+          <PlaceholderCard key={block.label} block={block} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`grid grid-cols-1 gap-3 ${GRID_COLS[columns]}`}>
+      {blocks.map((block) => (
+        <PlaceholderCard key={block.label} block={block} />
+      ))}
+    </div>
+  );
+}
+
 export default function PlaceholderBlocks({
   title,
   description,
@@ -59,19 +117,7 @@ export default function PlaceholderBlocks({
           )}
         </div>
 
-        <div className={`grid grid-cols-1 gap-3 ${GRID_COLS[columns]}`}>
-          {blocks.map((block) => (
-            <div key={block.label} className="rounded-xl bg-card p-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-foreground">{block.label}</h2>
-                <BlockIcon />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {block.description ?? "Coming soon"}
-              </p>
-            </div>
-          ))}
-        </div>
+        <PlaceholderGrid blocks={blocks} columns={columns} />
       </div>
     </main>
   );
