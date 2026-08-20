@@ -1,135 +1,32 @@
 import WatchlistPanel from "@/components/WatchlistPanel";
-import { type EarningsRow } from "@/components/EarningsPanel";
-import { supabase } from "@/lib/supabase";
 import ResearchFeed from "@/components/ResearchFeed";
-import { getLatestArticles } from "@/lib/substack";
-import { fetchWatchlistNews, fetchMarketNews } from "@/lib/finnhubNews";
 import MarketDigestPanel from "@/components/MarketDigestPanel";
 import MoversPanel from "@/components/MoversPanel";
+import { fetchWatchlistData } from "@/lib/watchlist";
+import { getLatestArticles } from "@/lib/substack";
+import { fetchWatchlistNews, fetchMarketNews } from "@/lib/finnhubNews";
 import { fetchMarketDigest } from "@/lib/marketDigest";
-import { fetchInsiderActivity } from "@/lib/insiderTransactions";
 
 export default async function Home() {
-  const [
-    { data: watchlist, error },
-    { data: quotes },
-    { data: fundamentals },
-    { data: earnings, error: earningsError },
-  ] = await Promise.all([
-    supabase.from("stocks").select("*").order("created_at", { ascending: true }),
-    supabase.from("stock_quotes").select("ticker, price, change_pct, updated_at"),
-    supabase
-      .from("stock_fundamentals")
-      .select("ticker, market_cap, market_cap_currency, forward_pe, pe_ttm"),
-    supabase
-      .from("stock_earnings")
-      .select("ticker, source_symbol, date, hour, quarter, year, eps_estimate, revenue_estimate")
-      .order("date", { ascending: true }),
+  // One stage rather than two. The watchlist join used to run as its own awaited
+  // batch before the news fetches could start, so the page paid Supabase and
+  // Substack serially; behind fetchWatchlistData they now overlap.
+  const [watchlist, articles, watchlistNews, marketNews, digestResult] = await Promise.all([
+    fetchWatchlistData(),
+    getLatestArticles(10),
+    fetchWatchlistNews(),
+    fetchMarketNews(),
+    fetchMarketDigest(),
   ]);
 
-  if (error || !watchlist) {
+  if (watchlist.error) {
+    console.error(`[home] watchlist unavailable (${watchlist.error})`);
     return (
       <main className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <p className="text-muted-foreground">Failed to load watchlist. Check Supabase connection.</p>
       </main>
     );
   }
-
-  const quoteMap = new Map(
-    (quotes ?? []).map((q) => [
-      q.ticker,
-      { price: q.price ?? 0, changePct: q.change_pct ?? 0, updatedAt: q.updated_at ?? null },
-    ])
-  );
-
-  // Fundamentals come from a separate daily job, so a ticker can legitimately
-  // have a quote but no fundamentals row yet (or ever — ETFs and foreign
-  // listings have no Finnhub profile or SEC insider filings).
-  const fundamentalsMap = new Map(
-    (fundamentals ?? []).map((f) => [
-      f.ticker,
-      {
-        marketCap: f.market_cap ?? null,
-        marketCapCurrency: f.market_cap_currency ?? null,
-        forwardPe: f.forward_pe ?? null,
-        peTtm: f.pe_ttm ?? null,
-      },
-    ])
-  );
-
-  // A failed earnings query is NOT the same as a ticker having no earnings
-  // scheduled, and must not render as one: when the `stock_earnings` table was
-  // missing entirely, discarding this error made all 126 tickers read
-  // "No scheduled earnings" instead of surfacing the real fault.
-  if (earningsError) {
-    console.error(
-      `[home] stock_earnings query failed (${earningsError.code}): ${earningsError.message}`
-    );
-  }
-
-  // Grouped into a plain object rather than a Map because this crosses the
-  // server/client boundary into WatchlistPanel. The query is already ordered by
-  // date, so each ticker's array comes out chronological without re-sorting.
-  const earningsByTicker: Record<string, EarningsRow[]> = {};
-  for (const row of earnings ?? []) {
-    (earningsByTicker[row.ticker] ??= []).push({
-      ticker: row.ticker,
-      sourceSymbol: row.source_symbol ?? null,
-      date: row.date,
-      hour: row.hour ?? null,
-      quarter: row.quarter ?? null,
-      year: row.year ?? null,
-      epsEstimate: row.eps_estimate ?? null,
-      revenueEstimate: row.revenue_estimate ?? null,
-    });
-  }
-
-  // Today in UTC, matching how EarningsPanel compares date-only strings.
-  const now = new Date();
-  const todayIso = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  )
-    .toISOString()
-    .split("T")[0];
-
-  const stocks = watchlist.map((stock) => {
-    const { price, changePct, updatedAt } = quoteMap.get(stock.ticker) ?? {
-      price: 0,
-      changePct: 0,
-      updatedAt: null,
-    };
-    const fundamental = fundamentalsMap.get(stock.ticker) ?? {
-      marketCap: null,
-      marketCapCurrency: null,
-      forwardPe: null,
-      peTtm: null,
-    };
-    // Earliest date not already past. Rows are date-ordered from the query, so
-    // the first match is the next one.
-    const nextEarnings =
-      (earningsByTicker[stock.ticker] ?? []).find((e) => e.date >= todayIso)?.date ?? null;
-    return { ...stock, price, changePct, updatedAt, ...fundamental, nextEarnings };
-  });
-
-  const [articles, watchlistNews, marketNews, digestResult, insiderResult] = await Promise.all([
-    getLatestArticles(10),
-    fetchWatchlistNews(),
-    fetchMarketNews(),
-    fetchMarketDigest(),
-    fetchInsiderActivity(),
-  ]);
-
-  // Logged rather than rendered: an empty Insider column and a failed query look
-  // identical in the table, and most rows are legitimately empty. Same reasoning
-  // as the stock_earnings error above.
-  if (insiderResult.error) {
-    console.error(`[home] insider_transactions query failed (${insiderResult.error})`);
-  }
-
-  const stocksWithInsider = stocks.map((stock) => ({
-    ...stock,
-    insider: insiderResult.byTicker[stock.ticker] ?? null,
-  }));
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -149,7 +46,7 @@ export default async function Home() {
             <MarketDigestPanel digest={digestResult.digest} error={digestResult.error} />
           </div>
           <div className="w-full shrink-0 xl:w-48">
-            <MoversPanel stocks={stocks} />
+            <MoversPanel stocks={watchlist.stocks} />
           </div>
         </div>
 
@@ -159,9 +56,9 @@ export default async function Home() {
             a server component. The news feed has no such coupling and is handed
             down as a slot. */}
         <WatchlistPanel
-          stocks={stocksWithInsider}
-          earnings={earningsByTicker}
-          earningsUnavailable={Boolean(earningsError)}
+          stocks={watchlist.stocks}
+          earnings={watchlist.earningsByTicker}
+          earningsUnavailable={watchlist.earningsUnavailable}
           researchFeed={
             <ResearchFeed articles={articles} watchlistNews={watchlistNews} marketNews={marketNews} />
           }

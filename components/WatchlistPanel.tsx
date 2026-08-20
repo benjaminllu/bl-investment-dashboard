@@ -89,8 +89,13 @@ interface Props {
    * It sits in the glance row, which this component lays out, but it shares no
    * state with the watchlist — so passing it as a node keeps its props (and the
    * three feeds behind them) out of this component's signature entirely.
+   *
+   * Optional: /research reuses this panel but has its own reading column and no
+   * business carrying the home page's news rail. When it is absent the rail is
+   * not rendered at all, and the chart takes back that quarter of the row —
+   * rather than an empty column holding the space open.
    */
-  researchFeed: React.ReactNode;
+  researchFeed?: React.ReactNode;
 }
 
 export default function WatchlistPanel({
@@ -193,7 +198,7 @@ export default function WatchlistPanel({
           />
         </div>
 
-        <div className="w-full shrink-0 lg:w-1/4">{researchFeed}</div>
+        {researchFeed && <div className="w-full shrink-0 lg:w-1/4">{researchFeed}</div>}
       </div>
 
       {/* Full width now that nothing sits beside it. This is the densest thing
