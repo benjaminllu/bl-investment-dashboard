@@ -28,8 +28,18 @@ async function fetchPosts(
   subscribed: boolean
 ): Promise<SubstackArticle[]> {
   try {
+    // NOT `cache: "no-store"`. That single flag opted the entire home page out
+    // of static rendering — it was the only reason `/` built as a dynamic route
+    // while every other page prerendered. Measured cost: `/research` serves the
+    // same watchlist payload in 4ms, `/` took 157-290ms and could not be CDN
+    // cached at all, on every single request.
+    //
+    // 900s to match the news feeds this rail sits beside. These are essays
+    // published a few times a week; a quarter-hour of staleness is invisible,
+    // and the floor is 300s anyway because MarketBanner's index quotes revalidate
+    // at that interval from the root layout.
     const res = await fetch(`${baseUrl}/api/v1/posts?limit=5&sort=new`, {
-      cache: "no-store",
+      next: { revalidate: 900 },
     });
     if (!res.ok) return [];
     const posts: SubstackPost[] = await res.json();

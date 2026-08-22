@@ -125,3 +125,90 @@ export async function fetchFredHistory(seriesId: string, range: FredRange): Prom
     return [];
   }
 }
+
+/**
+ * 2Y and 10Y Treasury yields for the sticky header, with the day's change.
+ *
+ * These used to come from treasury.gov's daily-yield-curve CSV, parsed inside
+ * MarketBanner. That endpoint is correct but pathologically slow: measured at
+ * 18.2s / 19.5s / 18.4s time-to-first-byte across three consecutive runs, for
+ * 13KB of CSV — it is generating the whole year's file per request. Because the
+ * banner lives in the root layout, that 18s sat in front of every static
+ * regeneration in the app. FRED answers the same question in ~0.30s, and the
+ * key is already configured for the twenty series above.
+ *
+ * The trade is publication lag: treasury.gov posts the curve same-day around
+ * 16:15 ET, FRED mirrors it a little later. For a two-decimal header reading
+ * this is not a difference worth 18 seconds.
+ *
+ * DGS2/DGS10 are deliberately fetched directly rather than added to
+ * FRED_SERIES, which drives the /macro metric grid — adding them there would
+ * silently add two rows to that page.
+ */
+export interface TreasuryYields {
+  twoYear: number | null;
+  tenYear: number | null;
+  twoYearBps: number | null;
+  tenYearBps: number | null;
+}
+
+/**
+ * Latest two *published* observations, newest first.
+ *
+ * Over-fetches and filters rather than asking for `limit=2`, because FRED
+ * returns "." for market holidays and keeps the row. On the day after
+ * Thanksgiving a limit=2 request can come back as [".", "4.12"] — one usable
+ * number and no prior to difference it against, so the bps change would vanish
+ * on exactly the days someone is most likely to be checking it. Five rows
+ * covers any real holiday run.
+ */
+async function fetchLatestPair(seriesId: string, apiKey: string): Promise<number[]> {
+  const url =
+    `https://api.stlouisfed.org/fred/series/observations` +
+    `?series_id=${seriesId}&api_key=${apiKey}&file_type=json` +
+    `&sort_order=desc&limit=5`;
+  try {
+    const res = await fetch(url, { next: { revalidate: 3600 } });
+    if (!res.ok) {
+      console.error(`[fred] ${seriesId} yields failed: HTTP ${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    const obs: { date: string; value: string }[] = data.observations ?? [];
+    return obs
+      .map((o) => parseValue(o.value))
+      .filter((v): v is number => v !== null)
+      .slice(0, 2);
+  } catch (e) {
+    console.error(`[fred] ${seriesId} yields threw:`, e);
+    return [];
+  }
+}
+
+export async function fetchTreasuryYields(): Promise<TreasuryYields> {
+  const empty: TreasuryYields = {
+    twoYear: null,
+    tenYear: null,
+    twoYearBps: null,
+    tenYearBps: null,
+  };
+  const apiKey = process.env.FRED_API_KEY;
+  if (!apiKey) return empty;
+
+  const [two, ten] = await Promise.all([
+    fetchLatestPair("DGS2", apiKey),
+    fetchLatestPair("DGS10", apiKey),
+  ]);
+
+  // Rounded because the difference of two two-decimal percentages carries
+  // float noise — 4.12 - 4.09 is 0.030000000000000247 before rounding.
+  const bps = (pair: number[]) =>
+    pair.length >= 2 ? Math.round((pair[0] - pair[1]) * 100) : null;
+
+  return {
+    twoYear: two[0] ?? null,
+    tenYear: ten[0] ?? null,
+    twoYearBps: bps(two),
+    tenYearBps: bps(ten),
+  };
+}

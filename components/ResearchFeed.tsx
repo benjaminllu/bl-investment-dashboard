@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { SubstackArticle } from "@/lib/substack";
 import type { NewsItem } from "@/lib/finnhubNews";
+import { thumbnailUrl, THUMBNAIL_PX } from "@/lib/thumbnails";
 
 const TABS = ["Market News", "WL News", "Substack", "X / Twitter"] as const;
 type Tab = (typeof TABS)[number];
@@ -27,7 +28,18 @@ function NewsCard({ item }: { item: NewsItem }) {
     >
       {item.image && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={item.image} alt="" className="h-14 w-14 shrink-0 rounded object-cover" />
+        <img
+          src={thumbnailUrl(item.image)}
+          alt=""
+          // width/height are the intrinsic size we asked the CDN for, so the
+          // box is reserved before the bytes land and the list does not jump
+          // as images fill in. The h-14 w-14 classes still govern layout.
+          width={THUMBNAIL_PX}
+          height={THUMBNAIL_PX}
+          loading="lazy"
+          decoding="async"
+          className="h-14 w-14 shrink-0 rounded object-cover"
+        />
       )}
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
@@ -112,8 +124,12 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
                   {article.coverImage && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={article.coverImage}
+                      src={thumbnailUrl(article.coverImage)}
                       alt=""
+                      width={THUMBNAIL_PX}
+                      height={THUMBNAIL_PX}
+                      loading="lazy"
+                      decoding="async"
                       className="h-14 w-14 shrink-0 rounded object-cover"
                     />
                   )}

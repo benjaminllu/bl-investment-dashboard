@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { fetchMarketNews } from "@/lib/finnhubNews";
 import WipBadge from "@/components/WipBadge";
+import { thumbnailUrl } from "@/lib/thumbnails";
 
 async function generateGeminiSummary(headline: string, source: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
@@ -86,8 +87,13 @@ export default async function AISummaryPage() {
             {article.image && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={article.image}
+                src={thumbnailUrl(article.image, 1344, 384)}
                 alt=""
+                // 672x192 at 2x — the card is max-w-2xl and the image is h-48.
+                // Not lazy: this is the hero, above the fold on every load.
+                width={1344}
+                height={384}
+                decoding="async"
                 className="mb-4 h-48 w-full rounded-lg object-cover"
               />
             )}

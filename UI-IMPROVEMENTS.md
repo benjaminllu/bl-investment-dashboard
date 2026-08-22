@@ -8,15 +8,31 @@ enough to implement without re-deriving the plan.
 
 ## Priority 3 — Performance
 
-- [ ] Convert `<img>` to `next/image` in `components/ResearchFeed.tsx` (lines
-      ~30, ~112) and `app/ai-summary/page.tsx` (~line 77).
-- **Open question**: these images come from unpredictable external hosts
+- [x] ~~Convert `<img>` to `next/image` in `components/ResearchFeed.tsx` and
+      `app/ai-summary/page.tsx`~~ — **resolved 2026-08-22, but not with
+      `next/image`.** The open question below turned out to be a false
+      dichotomy: the answer was neither the wildcard nor the silent fallback.
+
+      Rewriting the image URL asks the CDN that already hosts the file to
+      resize it, so we allow-list nothing, proxy nothing, add no dependency and
+      consume no Vercel image-optimization quota. Home page image weight went
+      from 1,046 KB to 119 KB. See `lib/thumbnails.ts` and `PERFORMANCE.md`.
+
+      The limitation, recorded honestly: it only works for hosts the helper
+      knows about (currently CNBC and Substack's Cloudinary delivery). Unknown
+      hosts pass through untouched. The universal half of the fix is the
+      `loading="lazy"` added alongside it, which helps every host including the
+      ones that cannot be resized.
+- ~~**Open question**: these images come from unpredictable external hosts
       (Substack authors' custom domains, whatever Finnhub scrapes for news
       thumbnails). `next/image` requires allow-listing hosts via
       `images.remotePatterns` in `next.config.ts` — either accept a broad
       wildcard (weakens the domain-allowlist safety `next/image` is meant to
       provide) or accept that unlisted-domain images silently fall back to
-      unoptimized. Decide this before implementing.
+      unoptimized. Decide this before implementing.~~ — answered above.
+
+Further performance work, including the measured baseline and the deferred
+TradingView and RSC-payload items, now lives in `PERFORMANCE.md`.
 
 ## Priority 5 — Layout & Responsive
 

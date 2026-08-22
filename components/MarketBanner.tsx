@@ -1,4 +1,5 @@
 import MarketClock from "./MarketClock";
+import { fetchTreasuryYields } from "@/lib/fred";
 
 const INDICES = [
   { label: "S&P 500", ticker: "SPY" },
@@ -9,13 +10,6 @@ const INDICES = [
   { label: "Oil", ticker: "USO" },
   { label: "Copper", ticker: "CPER" },
 ];
-
-interface YieldData {
-  twoYear: number | null;
-  tenYear: number | null;
-  twoYearBps: number | null;
-  tenYearBps: number | null;
-}
 
 interface IndexQuote {
   price: number | null;
@@ -72,41 +66,6 @@ async function fetchSpFutures(): Promise<IndexQuote> {
     return { price, changePct: ((price - prevClose) / prevClose) * 100 };
   } catch {
     return { price: null, changePct: null };
-  }
-}
-
-async function fetchTreasuryYields(): Promise<YieldData> {
-  const empty: YieldData = { twoYear: null, tenYear: null, twoYearBps: null, tenYearBps: null };
-  try {
-    const year = new Date().getFullYear();
-    const res = await fetch(
-      `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/${year}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${year}&page&_format=csv`,
-      { next: { revalidate: 3600 } }
-    );
-    if (!res.ok) return empty;
-    const csv = await res.text();
-
-    const rows = csv
-      .trim()
-      .split("\n")
-      .map((line) => line.split(",").map((cell) => cell.replace(/"/g, "").trim()));
-    const [header, ...data] = rows;
-    const twoIdx = header.indexOf("2 Yr");
-    const tenIdx = header.indexOf("10 Yr");
-    if (twoIdx === -1 || tenIdx === -1 || data.length === 0) return empty;
-
-    const twoYear = parseFloat(data[0][twoIdx]);
-    const tenYear = parseFloat(data[0][tenIdx]);
-    if (isNaN(twoYear) || isNaN(tenYear)) return empty;
-
-    const prevTwoYear = data.length >= 2 ? parseFloat(data[1][twoIdx]) : NaN;
-    const prevTenYear = data.length >= 2 ? parseFloat(data[1][tenIdx]) : NaN;
-    const twoYearBps = !isNaN(prevTwoYear) ? Math.round((twoYear - prevTwoYear) * 100) : null;
-    const tenYearBps = !isNaN(prevTenYear) ? Math.round((tenYear - prevTenYear) * 100) : null;
-
-    return { twoYear, tenYear, twoYearBps, tenYearBps };
-  } catch {
-    return empty;
   }
 }
 
