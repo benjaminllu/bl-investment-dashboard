@@ -10,8 +10,6 @@ export type Stock = {
   company: string;
   price: number;
   changePct: number;
-  changePct1M?: number | null;
-  changePctYTD?: number | null;
   marketCap?: number | null;
   marketCapCurrency?: string | null;
   forwardPe?: number | null;
@@ -181,8 +179,6 @@ type SortKey =
   | "company"
   | "price"
   | "changePct"
-  | "changePct1M"
-  | "changePctYTD"
   | "marketCap"
   | "peTtm"
   | "forwardPe"
@@ -216,10 +212,6 @@ function sortValue(stock: Stock, key: SortKey): string | number | null {
       return stock.price;
     case "changePct":
       return stock.changePct;
-    case "changePct1M":
-      return stock.changePct1M ?? null;
-    case "changePctYTD":
-      return stock.changePctYTD ?? null;
     // Values are stored in mixed currencies, and only USD ones are rendered.
     // Sorting the raw number would rank a KRW market cap above every US
     // mega-cap, so anything non-USD sorts as missing — matching what's shown.
@@ -364,8 +356,6 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
             <SortHeader label="Company" sortKey="company" sort={sort} onSort={handleSort} className="px-2 py-1.5" />
             <SortHeader label="Price" sortKey="price" sort={sort} onSort={handleSort} className="w-24 px-2 py-1.5" />
             <SortHeader label="1D %" sortKey="changePct" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
-            <SortHeader label="1M %" sortKey="changePct1M" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
-            <SortHeader label="YTD %" sortKey="changePctYTD" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
             <SortHeader label="Mkt Cap" sortKey="marketCap" sort={sort} onSort={handleSort} className="w-24 px-2 py-1.5" />
             <SortHeader label="P/E TTM" sortKey="peTtm" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
             <SortHeader label="P/E Fwd" sortKey="forwardPe" sort={sort} onSort={handleSort} className="w-20 px-2 py-1.5" />
@@ -406,12 +396,6 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
               <td className="px-2 py-1.5 tabular-nums">${stock.price.toFixed(2)}</td>
               <td className="px-2 py-1.5 tabular-nums">
                 <PctCell value={stock.changePct} />
-              </td>
-              <td className="px-2 py-1.5 tabular-nums">
-                <PctCell value={stock.changePct1M} />
-              </td>
-              <td className="px-2 py-1.5 tabular-nums">
-                <PctCell value={stock.changePctYTD} />
               </td>
               <td className="px-2 py-1.5 tabular-nums">
                 <MarketCapCell value={stock.marketCap} currency={stock.marketCapCurrency} />
