@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: "Research", href: "/research" },
   { label: "AI Summary", href: "/ai-summary" },
   { label: "Macro", href: "/macro" },
+  { label: "Sectors", href: "/sectors" },
   { label: "Positioning", href: "/positioning" },
   { label: "Risk", href: "/risk" },
   { label: "Analytics", href: "/analytics" },

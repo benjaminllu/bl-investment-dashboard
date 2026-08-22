@@ -14,7 +14,7 @@ This is a personal project — no SLA is expected from any of the unauthenticate
 | [Finnhub](#finnhub) | Quotes, news | API key (query param) | `FINNHUB_API_KEY` | 60 req/min (free tier) | 300s (index quotes), 900s (market news) |
 | [FRED](#fred-federal-reserve-economic-data) | Macro series | API key (query param) | `FRED_API_KEY` | ~120 req/min (commonly cited; not confirmed against FRED's own docs — see note) | 3600s |
 | [Treasury.gov](#treasurygov) | 2Y/10Y yields | None | — | Unpublished | 3600s |
-| [Yahoo Finance](#yahoo-finance-unofficial) | S&P 500 futures (ES), daily price history | None (requires User-Agent) | — | Unofficial, unpublished | 300s (banner); batch script for history |
+| [Yahoo Finance](#yahoo-finance-unofficial) | S&P 500 futures (ES), daily price history, sector ETF returns | None (requires User-Agent) | — | Unofficial, unpublished | 300s (banner); 3600s (sectors); batch script for history |
 | [CNN Fear & Greed](#cnn-fear--greed-index-unofficial) | Sentiment index | None (requires User-Agent) | — | Unofficial, unpublished | 1800s |
 | [Cboe](#cboe-vix--vixeq) | VIX / VIXEQ | None (requires User-Agent) | — | Unpublished | 3600s |
 | [KOFIA FreeSIS](#kofia-freesis-korean-retail-leverage-unofficial) | Korean margin debt, deposits, forced sales, KOSPI/KOSDAQ market cap | None (requires User-Agent + Referer) | — | Unofficial, unpublished | 3600s |
@@ -99,6 +99,15 @@ Impact is small and self-limiting — those tickers keep their existing `stock_e
 **Why not Finnhub:** Finnhub has no futures asset class whatsoever. Verified across three independent checks — `/quote` returns `c: 0` for `ES1!`, `ES=F`, `ESU2026`, `CME:ES`, and `SPX` (and `/ES` resolves to **Eversource Energy**, the equity `ES`, at ~$75 rather than the index at ~7,400); symbol search returns zero results for "E-mini" or "S&P 500 futures" and only ever returns `Common Stock`; and `/futures/exchange` and `/futures/symbol` return the marketing HTML page while `/forex/exchange` and `/crypto/exchange` return real JSON. Finnhub's freely published [S&P 500 futures tick dataset](https://www.kaggle.com/datasets/finnhub/sp-500-futures-tick-data-sp) is a static 2000–2019 Kaggle dump, not an API — easy to mistake for live coverage.
 
 **Second use — daily price history.** `scripts/backfill-price-history.js` calls the same chart endpoint with `?range=5y&interval=1d` for every held ticker plus `SPY`, writing closes and volume into `price_history`. This feeds the Sharpe/drawdown/beta metrics on the Portfolio tab, which cannot be computed from point-in-time data at all. Finnhub was the obvious source and is not available: `/stock/candle` is 403 on the free tier.
+
+**Third use — sector performance.** *(Added 2026-08-22.)* `lib/sectors.ts` calls the same chart endpoint with `?range=2y&interval=1d` for nineteen symbols — the eleven Select Sector SPDRs, seven industry funds, and `SPY` as the benchmark — to build the `/sectors` page. No database and no cron: it is a live server-side fetch on `revalidate: 3600`, ~57KB per symbol, so roughly 1.1MB per hourly refresh.
+
+Two details are load-bearing:
+
+- **Adjusted closes, not raw closes.** The page reads `indicators.adjclose[0].adjclose`, falling back to `quote[0].close` only if a symbol arrives without one. Dividends are not a rounding error in a sector ranking: measured on live data, XLU's trailing-year price return was **−0.58%** against a total return of **+2.19%**, a 2.77pp gap. Ranking on price return would silently and permanently penalise utilities, staples, real estate and energy against technology — in the one comparison the page exists to make.
+- **`range=2y`, not `1y`.** The 1Y window needs a bar on or before the date exactly a year back, and a 1y request begins roughly there, so a holiday at the boundary would blank the column. The extra year costs ~30KB per symbol and removes the edge case.
+
+Returns are null rather than approximated when a fund's history does not span the window. This is what keeps a young thematic out of the ranking: Roundhill's memory ETF (`DRAM`) was evaluated and dropped after returning **98 daily bars against 251** for every other candidate — its YTD and 1Y figures would otherwise have been short-window numbers sitting unmarked beside full-year ones.
 
 Coverage checked against the real book before building on it: **34/34 symbols returned data**, including the OTC foreign listings Finnhub has no profile for (`ATXRF`, `TORXF`, `CPPKF`, `MTLMY`). Depth varies — most have the full ~1250 bars, but six are recent listings, the shortest being `SIVEF` at 90. That is what limits the longest window covering every holding to ~90 trading days, and why 1Y is labelled as 86.5% coverage rather than presented as whole-book.
 
