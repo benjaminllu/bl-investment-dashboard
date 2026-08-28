@@ -27,9 +27,9 @@ export default function PortfolioLockScreen({ configured }: { configured: boolea
   });
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-full">
       <div className="mx-auto max-w-screen-3xl p-4">
-        <h1 className="mb-4 text-2xl font-bold text-foreground">Portfolio</h1>
+        <h1 className="mb-4 text-sm font-semibold text-foreground">Portfolio</h1>
 
         {/* Centred rather than widened: a full-bleed card would stretch the
             password field across the viewport. The narrow card is the point. */}

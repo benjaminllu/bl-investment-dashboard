@@ -203,7 +203,7 @@ export default function WatchlistPanel({
 
       {/* Full width now that nothing sits beside it. This is the densest thing
           on the page and had been running at 75% while a rail idled next to it. */}
-      <div className="overflow-hidden rounded-xl bg-card">
+      <div className="overflow-hidden border border-border bg-card">
         {/* Arrows sit outside the scroller rather than floating over it, so they
             never cover a category name. They render only when the row actually
             overflows, and each dims at its own end. */}

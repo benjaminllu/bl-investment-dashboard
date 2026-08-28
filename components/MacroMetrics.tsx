@@ -40,7 +40,7 @@ export default function MacroMetrics({ metrics }: { metrics: FredMetric[] }) {
               key={metric.id}
               onClick={() => setSelectedId(active ? null : metric.id)}
               title={metric.label}
-              className={`rounded-xl bg-card p-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              className={`border border-border bg-card p-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 active ? "ring-2 ring-accent" : ""
               }`}
             >

@@ -28,9 +28,9 @@ export default async function ResearchPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-full">
       <div className="mx-auto max-w-screen-3xl p-4">
-        <h1 className="mb-4 text-2xl font-bold text-foreground">Research</h1>
+        <h1 className="mb-4 text-sm font-semibold text-foreground">Research</h1>
 
         {/* The chart, its presets, the earnings panel and the table, exactly as
             the home page shows them — the same component, so the two cannot
@@ -38,7 +38,7 @@ export default async function ResearchPage() {
             its own written notes below, and stacking a market-news feed beside
             them would put two competing reading columns in one row. */}
         {watchlist.error ? (
-          <div className="mb-4 rounded-xl bg-card p-4">
+          <div className="mb-4 border border-border bg-card p-4">
             <p className="text-muted-foreground">
               Failed to load watchlist. Check Supabase connection.
             </p>
@@ -61,7 +61,7 @@ export default async function ResearchPage() {
 
         <div className="flex flex-col gap-4">
           {(posts ?? []).map((post: Post) => (
-            <div key={post.id} className="rounded-xl bg-card p-4">
+            <div key={post.id} className="border border-border bg-card p-4">
               <div className="mb-3 flex items-start justify-between gap-4">
                 <h2 className="text-lg font-semibold text-foreground">{post.title}</h2>
                 <span className="shrink-0 text-xs text-muted-foreground">

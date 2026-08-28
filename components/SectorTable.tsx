@@ -87,7 +87,7 @@ function Tier({
   }, [rows, mode, sort]);
 
   return (
-    <div className="rounded-xl bg-card p-4">
+    <div className="border border-border bg-card p-4">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         <p className="text-xs text-muted-foreground">{note}</p>
@@ -138,7 +138,7 @@ export default function SectorTable({ data }: { data: SectorsData }) {
 
   if (data.unavailable) {
     return (
-      <div className="rounded-xl bg-card p-4">
+      <div className="border border-border bg-card p-4">
         <p className="text-sm text-muted-foreground">
           The benchmark did not load, so nothing can be measured against it. The page will fill in
           on the next refresh.
@@ -206,7 +206,7 @@ export default function SectorTable({ data }: { data: SectorsData }) {
 
       {/* The benchmark's own numbers. Without them a screen of green relative
           figures is unreadable: every sector can beat an index that fell. */}
-      <div className="rounded-xl bg-card p-4">
+      <div className="border border-border bg-card p-4">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h2 className="text-sm font-semibold text-foreground">Benchmark</h2>
           <p className="text-xs text-muted-foreground">

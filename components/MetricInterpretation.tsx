@@ -30,7 +30,7 @@ export default function MetricInterpretation({
   stats?: { label: string; value: string }[];
 }) {
   return (
-    <div className={`${BLOCK_HEIGHT} flex flex-col overflow-y-auto rounded-xl bg-card p-3`}>
+    <div className={`${BLOCK_HEIGHT} flex flex-col overflow-y-auto border border-border bg-card p-3`}>
       {interpretation === null ? (
         <p className="text-xs leading-relaxed text-muted-foreground">
           No interpretation available — the underlying series could not be read.

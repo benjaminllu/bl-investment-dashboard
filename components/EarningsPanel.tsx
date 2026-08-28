@@ -28,9 +28,17 @@ function daysUntil(iso: string): number {
   return Math.round((target - todayUtc) / 86_400_000);
 }
 
+// The standard abbreviations, not prose. "Before open" and "After close" were
+// the two widest cells in the table and the reason it scrolled sideways; both
+// carry a title attribute at the cell so the long form is one hover away.
 const HOUR_LABEL: Record<string, string> = {
-  bmo: "Before open",
-  amc: "After close",
+  bmo: "BMO",
+  amc: "AMC",
+};
+
+const HOUR_TITLE: Record<string, string> = {
+  bmo: "Before market open",
+  amc: "After market close",
 };
 
 // Revenue arrives in absolute units (AAPL: 110813711563 for a $110.8B quarter),
@@ -66,6 +74,8 @@ type Props = {
   onSelect: (ticker: string) => void;
   /** The query failed, so emptiness here says nothing about the schedule. */
   unavailable?: boolean;
+  /** Root classes. Defaults to the card treatment; the Console preview flattens it. */
+  className?: string;
 };
 
 /**
@@ -83,6 +93,9 @@ export default function EarningsPanel({
   selected,
   onSelect,
   unavailable,
+  // Fixed height on mobile so the panel does not grow with the row count;
+  // h-full on lg because the glance row sets one height for all three panels.
+  className = "flex h-42 flex-col border border-border bg-card p-3 lg:h-full",
 }: Props) {
   const upcoming = rows
     .filter((r) => daysUntil(r.date) >= 0)
@@ -91,7 +104,7 @@ export default function EarningsPanel({
 
   if (upcoming.length === 0) {
     return (
-      <div className="flex h-42 flex-col rounded-xl bg-card p-3 lg:h-full">
+      <div className={className}>
         <h2 className="text-xs font-medium text-foreground">Upcoming Earnings</h2>
         <p className="flex flex-1 items-center text-xs text-muted-foreground">
           {unavailable
@@ -103,25 +116,27 @@ export default function EarningsPanel({
   }
 
   return (
-    // Fixed height on mobile so the panel does not grow with the row count;
-    // h-full on lg because the glance row sets one height for all three panels.
-    <div className="flex h-42 flex-col rounded-xl bg-card p-3 lg:h-full">
+    <div className={className}>
       <h2 className="mb-1 shrink-0 text-xs font-medium text-foreground">Upcoming Earnings</h2>
 
-      {/* Scrolls in both axes inside the fixed height: cells never wrap, so a
-          narrow viewport scrolls sideways instead of growing the panel. */}
-      <div className="min-h-0 flex-1 overflow-auto">
+      {/* Vertical scroll only. The columns are abbreviated hard enough to fit
+          the panel outright — "Q4 '26" not "Q4 2026", "BMO" not "Before open",
+          pr-2 not pr-3 — because a six-column table you have to drag sideways
+          to read is not a glance. overflow-x-hidden makes that a rule rather
+          than a hope: if a column ever grows past the panel again it truncates
+          visibly instead of quietly reintroducing the sideways scroll. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         <table className="w-full text-left text-xs">
           <thead className="sticky top-0 z-10 bg-card text-muted-foreground">
             <tr>
-              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Ticker</th>
-              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Date</th>
-              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Quarter</th>
-              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">Timing</th>
+              <th className="py-0.5 pr-2 font-medium whitespace-nowrap">Ticker</th>
+              <th className="py-0.5 pr-2 font-medium whitespace-nowrap">Date</th>
+              <th className="py-0.5 pr-2 font-medium whitespace-nowrap">Qtr</th>
+              <th className="py-0.5 pr-2 font-medium whitespace-nowrap">When</th>
               {/* Abbreviated: the full labels were the widest cells in their
                   columns, and six nowrap columns in a 384px panel cannot spend
                   70px on a header for a $1.23 value. */}
-              <th className="py-0.5 pr-3 font-medium whitespace-nowrap">EPS</th>
+              <th className="py-0.5 pr-2 font-medium whitespace-nowrap">EPS</th>
               <th className="py-0.5 font-medium whitespace-nowrap">Rev</th>
             </tr>
           </thead>
@@ -155,25 +170,30 @@ export default function EarningsPanel({
                       carried by text weight instead, so green keeps meaning
                       "this is the active one" as it does in every tab row. */}
                   <td
-                    className={`whitespace-nowrap py-1 pr-3 font-semibold ${
+                    className={`overflow-hidden py-1 pr-2 font-semibold text-ellipsis whitespace-nowrap ${
                       isSelected ? "text-accent" : ""
                     }`}
                   >
                     {row.ticker}
                   </td>
-                  <td className="whitespace-nowrap py-1 pr-3 tabular-nums">
+                  <td className="whitespace-nowrap py-1 pr-2 tabular-nums">
                     {formatDate(row.date)}
                     <span className="ml-1 font-normal text-muted-foreground">
                       {days === 0 ? "(today)" : days === 1 ? "(tmrw)" : `(${days}d)`}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap py-1 pr-3 tabular-nums">
-                    {row.quarter && row.year ? `Q${row.quarter} ${row.year}` : "—"}
+                  <td className="whitespace-nowrap py-1 pr-2 tabular-nums">
+                    {row.quarter && row.year
+                      ? `Q${row.quarter} ’${String(row.year).slice(-2)}`
+                      : "—"}
                   </td>
-                  <td className="whitespace-nowrap py-1 pr-3">
+                  <td
+                    className="whitespace-nowrap py-1 pr-2"
+                    title={row.hour ? HOUR_TITLE[row.hour] : undefined}
+                  >
                     {row.hour && HOUR_LABEL[row.hour] ? HOUR_LABEL[row.hour] : "—"}
                   </td>
-                  <td className="whitespace-nowrap py-1 pr-3 tabular-nums">
+                  <td className="whitespace-nowrap py-1 pr-2 tabular-nums">
                     {showEstimates && row.epsEstimate !== null ? (
                       `$${row.epsEstimate.toFixed(2)}`
                     ) : (

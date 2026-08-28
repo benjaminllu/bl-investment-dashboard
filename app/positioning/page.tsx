@@ -22,10 +22,10 @@ export default async function PositioningPage() {
   const koreaLeverage = await fetchKoreaLeverage();
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-full">
       <div className="mx-auto max-w-screen-3xl space-y-4 p-4">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold text-foreground">Positioning</h1>
+          <h1 className="text-sm font-semibold text-foreground">Positioning</h1>
           <WipBadge title="Only the Korean leverage panel is built — the blocks below it are still empty placeholders." />
         </div>
 

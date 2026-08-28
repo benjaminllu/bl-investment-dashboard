@@ -64,11 +64,11 @@ export default async function AISummaryPage() {
   const summary = article ? await getGeminiSummary(article.headline, article.source) : null;
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-full">
       <div className="mx-auto max-w-screen-3xl p-4">
         <div className="mb-4">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground">AI Summary</h1>
+            <h1 className="text-sm font-semibold text-foreground">AI Summary</h1>
             <WipBadge title="Summarises only the single latest market headline. Multi-story and per-ticker summaries are not built yet." />
           </div>
           {/* Without this the page reads as finished: one polished card gives no
@@ -83,7 +83,7 @@ export default async function AISummaryPage() {
         )}
 
         {article && (
-          <div className="max-w-2xl rounded-xl bg-card p-4">
+          <div className="max-w-2xl border border-border bg-card p-4">
             {article.image && (
               // eslint-disable-next-line @next/next/no-img-element
               <img

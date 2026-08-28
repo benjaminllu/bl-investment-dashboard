@@ -36,7 +36,7 @@ async function fetchPosts(
     //
     // 900s to match the news feeds this rail sits beside. These are essays
     // published a few times a week; a quarter-hour of staleness is invisible,
-    // and the floor is 300s anyway because MarketBanner's index quotes revalidate
+    // and the floor is 300s anyway because the tape's index quotes revalidate
     // at that interval from the root layout.
     const res = await fetch(`${baseUrl}/api/v1/posts?limit=5&sort=new`, {
       next: { revalidate: 900 },

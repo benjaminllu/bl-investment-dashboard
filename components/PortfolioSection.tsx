@@ -113,7 +113,7 @@ export default function PortfolioSection({
 }) {
   if (positions.length === 0) {
     return (
-      <section className="rounded-xl bg-card p-4">
+      <section className="border border-border bg-card p-4">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-foreground">{label}</h2>
           <span className="text-xs text-muted-foreground">Never imported</span>
@@ -141,7 +141,7 @@ export default function PortfolioSection({
     broker?.toLowerCase() === "vanguard" && positions.some((p) => p.avg_cost !== null);
 
   return (
-    <section className="overflow-hidden rounded-xl bg-card">
+    <section className="overflow-hidden border border-border bg-card">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 p-4 pb-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-sm font-semibold text-foreground">{label}</h2>

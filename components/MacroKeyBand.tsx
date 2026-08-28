@@ -25,7 +25,7 @@ export default function MacroKeyBand({ dotPlot, keyDates }: Props) {
   const expiry = nextMajorOptionExpiry();
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-card px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-4 border border-border bg-card px-4 py-3">
       <div className="flex flex-wrap items-center gap-4">
         {dotPlot.years.map((y) => (
           <div key={y.year} className="text-center">

@@ -32,6 +32,9 @@
  * every single day, in the one comparison this page exists to make.
  */
 
+import { fetchUniverse, type Bar, type Universe } from "./marketBars";
+import { trimFloats } from "./precision";
+
 export const BENCHMARK = "SPY";
 
 export type SectorTier = "sector" | "industry";
@@ -98,57 +101,6 @@ export interface SectorsData {
   unavailable: boolean;
 }
 
-interface Bar {
-  date: string;
-  close: number;
-}
-
-/**
- * Two years rather than one. The 1Y window needs a bar on or before the date
- * exactly a year back, and a 1y request starts roughly there — so a market
- * holiday at the boundary would drop the oldest anchor and blank the column.
- * The extra year is ~30KB per ticker and removes the edge case entirely.
- */
-const RANGE = "2y";
-
-const YAHOO_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-};
-
-async function fetchBars(ticker: string): Promise<Bar[]> {
-  try {
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${RANGE}&interval=1d`,
-      { headers: YAHOO_HEADERS, next: { revalidate: 3600 } },
-    );
-    if (!res.ok) {
-      console.error(`[sectors] ${ticker} failed: HTTP ${res.status}`);
-      return [];
-    }
-    const data = await res.json();
-    const result = data?.chart?.result?.[0];
-    const stamps: number[] | undefined = result?.timestamp;
-    // Adjusted closes carry the dividends; the unadjusted `quote[0].close` is
-    // only a fallback for the rare symbol Yahoo serves without an adjclose
-    // block, and a fallback row is still better than an empty one.
-    const closes: (number | null)[] | undefined =
-      result?.indicators?.adjclose?.[0]?.adjclose ?? result?.indicators?.quote?.[0]?.close;
-    if (!stamps || !closes) return [];
-
-    const bars: Bar[] = [];
-    for (let i = 0; i < stamps.length; i++) {
-      const close = closes[i];
-      if (typeof close !== "number" || !Number.isFinite(close)) continue;
-      bars.push({ date: new Date(stamps[i] * 1000).toISOString().slice(0, 10), close });
-    }
-    return bars;
-  } catch (e) {
-    console.error(`[sectors] ${ticker} threw:`, e);
-    return [];
-  }
-}
-
 /** The calendar date each window measures back to, given the latest close. */
 function anchorDate(latest: string, window: SectorWindow): string {
   const d = new Date(`${latest}T00:00:00Z`);
@@ -212,12 +164,14 @@ function emptyWindows(): Record<SectorWindow, number | null> {
   return { "1D": null, "1W": null, "1M": null, "3M": null, YTD: null, "1Y": null };
 }
 
-export async function fetchSectors(): Promise<SectorsData> {
-  const [benchmarkBars, ...allBars] = await Promise.all([
-    fetchBars(BENCHMARK),
-    ...SECTOR_DEFS.map((d) => fetchBars(d.ticker)),
-  ]);
-
+/**
+ * The returns table, computed from bars the caller already has.
+ *
+ * Split from the fetch so the sectors page can pull one universe and hand the
+ * same bars to `computeRotation` as well — see `lib/marketBars.ts`.
+ */
+export function computeSectorTable(universe: Universe): SectorsData {
+  const benchmarkBars = universe[BENCHMARK] ?? [];
   if (benchmarkBars.length < 2) {
     return { rows: [], benchmark: emptyWindows(), asOf: null, unavailable: true };
   }
@@ -225,8 +179,8 @@ export async function fetchSectors(): Promise<SectorsData> {
   const benchmark = emptyWindows();
   for (const w of SECTOR_WINDOWS) benchmark[w] = returnOver(benchmarkBars, w);
 
-  const rows: SectorRow[] = SECTOR_DEFS.map((def, i) => {
-    const bars = allBars[i];
+  const rows: SectorRow[] = SECTOR_DEFS.map((def) => {
+    const bars = universe[def.ticker] ?? [];
     const absolute = emptyWindows();
     const relative = emptyWindows();
     for (const w of SECTOR_WINDOWS) {
@@ -238,10 +192,19 @@ export async function fetchSectors(): Promise<SectorsData> {
     return { ticker: def.ticker, label: def.label, tier: def.tier, absolute, relative };
   });
 
-  return {
+  // Trimmed on the way out, like computeRotation next door — this table is
+  // the other consumer of the same universe, and its rows cross into a client
+  // component too. See lib/precision.ts.
+  return trimFloats({
     rows,
     benchmark,
     asOf: benchmarkBars[benchmarkBars.length - 1].date,
     unavailable: false,
-  };
+  });
+}
+
+export async function fetchSectors(): Promise<SectorsData> {
+  return computeSectorTable(
+    await fetchUniverse([BENCHMARK, ...SECTOR_DEFS.map((d) => d.ticker)]),
+  );
 }

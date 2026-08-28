@@ -221,7 +221,7 @@ export default function KoreaLeveragePanel({ data }: { data: KoreaLeverageData }
 
   if (data.unavailable) {
     return (
-      <div className="rounded-xl bg-card p-4">
+      <div className="border border-border bg-card p-4">
         <h2 className="text-sm font-semibold text-foreground">Korean Retail Leverage</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           KOFIA FreeSIS did not return data. The panel will fill in on the next hourly refresh.
@@ -236,7 +236,7 @@ export default function KoreaLeveragePanel({ data }: { data: KoreaLeverageData }
        placeholder column, where viewport-based breakpoints would still have
        reported "extra large" and kept the stat strip six across inside a 640px
        box. Container queries are core Tailwind v4, no plugin needed. */
-    <div className="@container rounded-xl bg-card p-4">
+    <div className="@container border border-border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold text-foreground">
           Korean Retail Leverage

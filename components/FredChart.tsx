@@ -114,7 +114,7 @@ export default function FredChart({ seriesId, label, unit }: Props) {
   const hoveredCoord = hoverIndex !== null ? coords[hoverIndex] : null;
 
   return (
-    <div className="rounded-xl bg-card p-4">
+    <div className="border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">{label}</h2>
         <div className="flex gap-1">

@@ -304,9 +304,28 @@ type StockTableProps = {
   stocks: Stock[];
   selected?: string | null;
   onSelect?: (ticker: string) => void;
+  /**
+   * Scroller classes. Defaults to the card treatment with its own viewport-
+   * relative cap; the Console format preview passes a flat, parent-sized one.
+   */
+  className?: string;
+  /**
+   * Called by the ticker button only, giving the row two levels of intent:
+   * clicking anywhere selects, clicking the ticker itself asks for the full
+   * detail. The Desk preview opens its drawer from this. When it is absent the
+   * button falls back to onSelect, which is the behaviour every other caller
+   * has always had.
+   */
+  onOpenTicker?: (ticker: string) => void;
 };
 
-export default function StockTable({ stocks, selected, onSelect }: StockTableProps) {
+export default function StockTable({
+  stocks,
+  selected,
+  onSelect,
+  className = "max-h-[60vh] overflow-auto border border-border bg-card",
+  onOpenTicker,
+}: StockTableProps) {
   // null = unsorted, i.e. the curated order the rows arrive in. This state
   // deliberately survives watchlist tab changes: the component keeps the same
   // position and type, so React preserves it and the sort reads as a view
@@ -341,7 +360,7 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
     // it adapts to the screen instead of wasting a tall monitor. overflow-auto
     // covers both axes: the horizontal scroll this already had, plus the new
     // vertical one.
-    <div className="max-h-[60vh] overflow-auto rounded-xl bg-card">
+    <div className={className}>
       {/* table-fixed + explicit column widths keep the layout identical across
           watchlist tabs (baselined on the "Index" tab) instead of resizing to
           each tab's content. Company is the one column left without a width, so
@@ -381,10 +400,12 @@ export default function StockTable({ stocks, selected, onSelect }: StockTablePro
             >
               <td className="px-2 py-1.5 font-semibold">
                 {/* Kept as a real button so the row stays reachable by keyboard —
-                    a bare <tr onClick> is mouse-only. Clicking it also bubbles to
-                    the row handler, but both select the same ticker. */}
+                    a bare <tr onClick> is mouse-only. The click still bubbles to
+                    the row handler, which selects; when onOpenTicker is given it
+                    additionally asks for detail, so the two are not in conflict. */}
                 <button
-                  onClick={() => onSelect?.(stock.ticker)}
+                  onClick={() => (onOpenTicker ?? onSelect)?.(stock.ticker)}
+                  title={onOpenTicker ? `Open ${stock.ticker} detail` : undefined}
                   className="hover:text-accent"
                 >
                   {stock.ticker}

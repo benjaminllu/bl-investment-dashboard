@@ -33,7 +33,7 @@ function Delta({ value, previousValue }: { value: number | null; previousValue: 
 
 export function VixCard({ data }: { data: VixSpreadData }) {
   return (
-    <div className="flex h-full flex-col rounded-xl bg-card p-4">
+    <div className="flex h-full flex-col border border-border bg-card p-4">
       <p className="text-sm font-medium text-muted-foreground">VIX</p>
       <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
         {formatValue(data.vix.value)}
@@ -48,7 +48,7 @@ export function VixCard({ data }: { data: VixSpreadData }) {
 
 export function SpreadCard({ data }: { data: VixSpreadData }) {
   return (
-    <div className="flex h-full flex-col rounded-xl bg-card p-4">
+    <div className="flex h-full flex-col border border-border bg-card p-4">
       <p className="text-sm font-medium text-muted-foreground">VIXEQ − VIX</p>
       <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
         {data.spread === null ? "—" : `${data.spread >= 0 ? "+" : ""}${data.spread.toFixed(2)}`}

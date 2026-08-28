@@ -65,8 +65,39 @@ export function rankMovers(stocks: MoverStock[]): { gainers: Mover[]; losers: Mo
   };
 }
 
-function Row({ mover, direction }: { mover: Mover; direction: "up" | "down" }) {
+function Row({
+  mover,
+  direction,
+  compact,
+}: {
+  mover: Mover;
+  direction: "up" | "down";
+  compact?: boolean;
+}) {
   const up = direction === "up";
+
+  // One line instead of two: ticker, price, change. The company name is the
+  // only thing dropped, and it is the one field the ticker already stands for —
+  // which is what lets six movers fit a 13rem rail without a scroller.
+  if (compact) {
+    return (
+      <li className="flex min-h-0 flex-1 items-baseline gap-2 px-2 py-1">
+        <span className="shrink-0 text-sm font-semibold text-foreground">{mover.ticker}</span>
+        <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+          ${mover.price.toFixed(2)}
+        </span>
+        <span
+          className={`shrink-0 text-sm font-semibold tabular-nums ${
+            up ? "text-accent" : "text-destructive"
+          }`}
+        >
+          {up ? "+" : ""}
+          {mover.changePct.toFixed(2)}%
+        </span>
+      </li>
+    );
+  }
+
   return (
     <li className="flex flex-1 flex-col justify-center gap-0.5 px-3 py-1.5">
       <div className="flex items-baseline justify-between gap-2">
@@ -89,9 +120,15 @@ function Row({ mover, direction }: { mover: Mover; direction: "up" | "down" }) {
 }
 
 /** Holds a row's height when a half is short, so the rail never goes ragged. */
-function EmptyRow() {
+function EmptyRow({ compact }: { compact?: boolean }) {
   return (
-    <li className="flex flex-1 items-center px-3 py-1.5 text-xs text-muted-foreground">—</li>
+    <li
+      className={`flex flex-1 items-center text-xs text-muted-foreground ${
+        compact ? "px-2 py-1" : "px-3 py-1.5"
+      }`}
+    >
+      —
+    </li>
   );
 }
 
@@ -99,17 +136,29 @@ function Half({
   label,
   movers,
   direction,
+  compact,
 }: {
   label: string;
   movers: Mover[];
   direction: "up" | "down";
+  compact?: boolean;
 }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       {/* The caption is neutral; the colour lives on the numbers, which is where
           it means something (One Signal Rule). It sits outside the list rather
-          than as a first <li>, so it is not announced as one of the movers. */}
-      <h3 className="shrink-0 px-3 pt-2 pb-0.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+          than as a first <li>, so it is not announced as one of the movers.
+
+          Compact hides it visually but keeps it for screen readers: green-above-
+          red plus the sign on every number carries the split to anyone who can
+          see it, and neither of those reaches someone who cannot. */}
+      <h3
+        className={
+          compact
+            ? "sr-only"
+            : "shrink-0 px-3 pt-2 pb-0.5 text-xs uppercase tracking-[0.14em] text-muted-foreground"
+        }
+      >
         {label}
       </h3>
       {/* Three across once there is width for it, one column on a phone, and a
@@ -118,9 +167,9 @@ function Half({
         {Array.from({ length: COUNT }, (_, i) => {
           const mover = movers[i];
           return mover ? (
-            <Row key={mover.ticker} mover={mover} direction={direction} />
+            <Row key={mover.ticker} mover={mover} direction={direction} compact={compact} />
           ) : (
-            <EmptyRow key={`${label}-empty-${i}`} />
+            <EmptyRow key={`${label}-empty-${i}`} compact={compact} />
           );
         })}
       </ol>
@@ -128,13 +177,39 @@ function Half({
   );
 }
 
-export default function MoversPanel({ stocks }: { stocks: MoverStock[] }) {
+export default function MoversPanel({
+  stocks,
+  className = "flex h-full flex-col overflow-hidden border border-border bg-card",
+  compact = false,
+}: {
+  stocks: MoverStock[];
+  /** Root classes. Defaults to the card treatment; the Console preview flattens it. */
+  className?: string;
+  /**
+   * One line per mover instead of two, dropping the company name and tightening
+   * the header, so all six fit a 13rem rail without a scroller.
+   *
+   * A variant rather than the new default: on the home page this panel is sized
+   * by the digest beside it and the two-line form already fits, so switching
+   * everything over would trade a readable panel for empty space. If the Console
+   * format is adopted, compact becomes the default and this flag goes away.
+   */
+  compact?: boolean;
+}) {
   const { gainers, losers } = rankMovers(stocks);
 
   return (
-    <section className="flex h-full flex-col overflow-hidden rounded-xl bg-card">
-      <div className="flex shrink-0 items-baseline justify-between gap-2 border-b border-border px-3 py-2">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-foreground">
+    <section className={className}>
+      <div
+        className={`flex shrink-0 items-baseline justify-between gap-2 border-b border-border ${
+          compact ? "px-2 py-0.5" : "px-3 py-2"
+        }`}
+      >
+        <h2
+          className={`font-semibold uppercase tracking-[0.18em] text-foreground ${
+            compact ? "text-xs" : "text-sm"
+          }`}
+        >
           Movers
         </h2>
         {/* Says which change this is: the table beside it also carries 1M and
@@ -148,8 +223,8 @@ export default function MoversPanel({ stocks }: { stocks: MoverStock[] }) {
           stacked would cost ~400px of page for six numbers — so the two halves
           go side by side instead and the whole thing collapses to one strip. */}
       <div className="flex min-h-0 flex-1 flex-col divide-y divide-border md:flex-row md:divide-x md:divide-y-0 xl:flex-col xl:divide-x-0 xl:divide-y">
-        <Half label="Gainers" movers={gainers} direction="up" />
-        <Half label="Losers" movers={losers} direction="down" />
+        <Half label="Gainers" movers={gainers} direction="up" compact={compact} />
+        <Half label="Losers" movers={losers} direction="down" compact={compact} />
       </div>
     </section>
   );

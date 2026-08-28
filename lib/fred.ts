@@ -130,7 +130,7 @@ export async function fetchFredHistory(seriesId: string, range: FredRange): Prom
  * 2Y and 10Y Treasury yields for the sticky header, with the day's change.
  *
  * These used to come from treasury.gov's daily-yield-curve CSV, parsed inside
- * MarketBanner. That endpoint is correct but pathologically slow: measured at
+ * the market banner. That endpoint is correct but pathologically slow: measured at
  * 18.2s / 19.5s / 18.4s time-to-first-byte across three consecutive runs, for
  * 13KB of CSV — it is generating the whole year's file per request. Because the
  * banner lives in the root layout, that 18s sat in front of every static

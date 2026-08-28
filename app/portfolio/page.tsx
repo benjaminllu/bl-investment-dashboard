@@ -334,10 +334,10 @@ export default async function PortfolioPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-full">
       <div className="mx-auto max-w-screen-3xl p-4">
         <div className="mb-4 flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold text-foreground">Portfolio</h1>
+          <h1 className="text-sm font-semibold text-foreground">Portfolio</h1>
           <div className="flex items-center gap-3">
             {filledSlots > 0 && (
               <p className="text-xs text-muted-foreground">
@@ -374,7 +374,7 @@ export default async function PortfolioPage() {
         </div>
 
         {error ? (
-          <div className="rounded-xl bg-card p-4">
+          <div className="border border-border bg-card p-4">
             <p className="text-sm text-muted-foreground">
               Positions could not be loaded, so this is not a statement about what you hold. If the{" "}
               <code className="text-muted-foreground/80">portfolios</code> and{" "}
@@ -390,13 +390,13 @@ export default async function PortfolioPage() {
           <div className="space-y-3">
             {allPositions.length > 0 && (
               <div className="flex flex-wrap gap-4">
-                <div className="rounded-xl bg-card px-4 py-2">
+                <div className="border border-border bg-card px-4 py-2">
                   <p className="text-xs text-muted-foreground">Combined Value</p>
                   <p className="text-lg font-semibold tabular-nums text-foreground">
                     {usd(combinedValue)}
                   </p>
                 </div>
-                <div className="rounded-xl bg-card px-4 py-2">
+                <div className="border border-border bg-card px-4 py-2">
                   <p className="text-xs text-muted-foreground">Combined Unrealized P&amp;L</p>
                   <p
                     className={`text-lg font-semibold tabular-nums ${combinedPnl >= 0 ? "text-accent" : "text-destructive"}`}
@@ -404,7 +404,7 @@ export default async function PortfolioPage() {
                     {combinedPnl >= 0 ? "+" : "−"}${money(Math.abs(combinedPnl))}
                   </p>
                 </div>
-                <div className="rounded-xl bg-card px-4 py-2">
+                <div className="border border-border bg-card px-4 py-2">
                   <p className="text-xs text-muted-foreground">Positions</p>
                   <p className="text-lg font-semibold tabular-nums text-foreground">
                     {allPositions.length}

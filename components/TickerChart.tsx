@@ -7,9 +7,20 @@ import type { ChartStudy } from "@/lib/chartPresets";
 interface Props {
   symbol: string;
   studies: ChartStudy[];
+  /**
+   * Wrapper classes. Defaults to the card-shaped glance-row treatment every
+   * current caller wants; the Console format preview passes a flat one instead.
+   */
+  className?: string;
 }
 
-export default function TickerChart({ symbol, studies }: Props) {
+export default function TickerChart({
+  symbol,
+  studies,
+  // h-120 while stacked on mobile; h-full on lg so the glance row's single
+  // height governs all three panels instead of this one setting its own.
+  className = "h-120 w-full overflow-hidden rounded-xl bg-slate-900 lg:h-full",
+}: Props) {
   const outerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,11 +100,6 @@ export default function TickerChart({ symbol, studies }: Props) {
   }, [symbol, studies]);
 
   return (
-    <div
-      ref={outerRef}
-      // h-120 while stacked on mobile; h-full on lg so the glance row's single
-      // height governs all three panels instead of this one setting its own.
-      className="h-120 w-full overflow-hidden rounded-xl bg-slate-900 lg:h-full"
-    />
+    <div ref={outerRef} className={className} />
   );
 }

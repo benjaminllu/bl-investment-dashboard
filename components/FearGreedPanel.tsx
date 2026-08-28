@@ -24,7 +24,7 @@ export default function FearGreedPanel({ data }: Props) {
   ];
 
   return (
-    <div className="flex h-full flex-col rounded-xl bg-card p-4">
+    <div className="flex h-full flex-col border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-foreground">Fear &amp; Greed Index</h2>
         {data.rating && (

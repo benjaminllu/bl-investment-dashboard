@@ -13,12 +13,12 @@ export default async function MacroPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-full">
       <div className="mx-auto max-w-screen-3xl space-y-4 p-4">
-        <h1 className="text-2xl font-bold text-foreground">Macro</h1>
+        <h1 className="text-sm font-semibold text-foreground">Macro</h1>
 
         {!hasApiKey ? (
-          <div className="rounded-xl bg-card p-4">
+          <div className="border border-border bg-card p-4">
             <p className="text-muted-foreground">
               Add <code className="text-muted-foreground/80">FRED_API_KEY</code> to{" "}
               <code className="text-muted-foreground/80">.env.local</code> to enable macro

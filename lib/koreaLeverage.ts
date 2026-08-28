@@ -4,6 +4,7 @@
 // imports in this project survive only because they are `import type` and
 // disappear at emit. Same reason lib/riskNarrative/* imports its siblings this way.
 import { percentileRank, type SeriesPoint } from "./riskStats";
+import { trimFloats } from "./precision";
 
 /**
  * Korean retail leverage, from KOFIA (금융투자협회) FreeSIS.
@@ -582,7 +583,11 @@ export async function fetchKoreaLeverage(): Promise<KoreaLeverageData> {
     .filter((p): p is KoreaLeveragePoint & { ratio: number } => p.ratio !== null)
     .map((p) => ({ date: p.date, value: p.ratio }));
 
-  return {
+  // Trimmed on the way out. The three ranges below are all shipped so the
+  // range switcher costs no network, which makes this the largest serialised
+  // payload in the app after /sectors — and every value in it is displayed to
+  // one decimal. See lib/precision.ts.
+  return trimFloats({
     asOf: toIso(latestCredit.TMPV1),
     marketAsOf: latestMarket ? toIso(latestMarket.TMPV1) : null,
     fundsAsOf: latestFunds ? toIso(latestFunds.TMPV1) : null,
@@ -607,5 +612,5 @@ export async function fetchKoreaLeverage(): Promise<KoreaLeverageData> {
     },
 
     unavailable: false,
-  };
+  });
 }

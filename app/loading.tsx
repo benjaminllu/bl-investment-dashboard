@@ -1,18 +1,26 @@
+/**
+ * Mirrors HomeBoard's grid, not the old two-column card page.
+ *
+ * A skeleton that does not match the layout it precedes is worse than none:
+ * the page visibly rearranges itself the moment data lands. Same rows, same
+ * columns, same hairline gaps — only the contents are pending.
+ */
 export default function Loading() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-screen-3xl p-6">
-        <div className="flex gap-6 items-start">
-          <div className="min-w-0 flex-1 space-y-3">
-            <div className="h-64 animate-pulse rounded-xl bg-card" />
-            <div className="h-96 animate-pulse rounded-xl bg-card" />
-          </div>
-          <div className="w-1/4 shrink-0 space-y-3">
-            <div className="h-8 animate-pulse rounded-lg bg-card" />
-            <div className="h-[500px] animate-pulse rounded-xl bg-card" />
-          </div>
-        </div>
+    <div className="grid h-full grid-cols-[minmax(0,1fr)_20rem] grid-rows-[21rem_19rem_minmax(0,1fr)] gap-px bg-border">
+      <div className="col-span-2 col-start-1 row-start-1 grid grid-cols-[minmax(0,1fr)_13rem] gap-px bg-border">
+        <div className="animate-pulse bg-card" />
+        <div className="animate-pulse bg-card" />
       </div>
-    </main>
+
+      <div className="col-start-1 row-start-2 grid grid-cols-[minmax(0,1fr)_22rem] gap-px bg-border">
+        <div className="animate-pulse bg-card" />
+        <div className="animate-pulse bg-card" />
+      </div>
+
+      <div className="col-start-2 row-span-2 row-start-2 animate-pulse bg-card" />
+
+      <div className="col-start-1 row-start-3 animate-pulse bg-card" />
+    </div>
   );
 }

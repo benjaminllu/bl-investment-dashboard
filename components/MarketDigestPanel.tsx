@@ -5,6 +5,8 @@ interface Props {
   digest: MarketDigest | null;
   /** Query-level failure, distinct from "the job has not run yet". */
   error: string | null;
+  /** Root classes. Defaults to the card treatment; the Console preview flattens it. */
+  className?: string;
 }
 
 const ET = "America/New_York";
@@ -78,7 +80,7 @@ function CellHead({ item, size }: { item: DigestItem; size: Size }) {
           miss AA for text this size. */}
       <span
         className={`shrink-0 font-semibold leading-none tabular-nums text-foreground/50 ${
-          major ? "text-2xl" : "text-sm"
+          major ? "text-xl" : "text-xs"
         }`}
       >
         {String(item.rank).padStart(2, "0")}
@@ -105,7 +107,7 @@ function Provenance({ item }: { item: DigestItem }) {
   // of an empty region. With four equal majors the cells are close to full, so
   // the shared baseline is worth having and the exception is gone.
   return (
-    <p className="mt-auto flex gap-1 pt-1 text-xs uppercase tracking-wide text-muted-foreground">
+    <p className="mt-auto flex gap-1 pt-0.5 text-xs uppercase tracking-wide text-muted-foreground">
       <span className="truncate">{item.source}</span>
       {time && <span className="shrink-0">· {time}</span>}
     </p>
@@ -134,7 +136,7 @@ function Cell({ item, size, placement }: { item: DigestItem; size: Size; placeme
         target="_blank"
         rel="noopener noreferrer"
         className={`group flex h-full flex-col bg-card transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
-          major ? "p-3" : "p-2"
+          major ? "p-2" : "p-1.5"
         }`}
       >
         <CellHead item={item} size={size} />
@@ -142,11 +144,11 @@ function Cell({ item, size, placement }: { item: DigestItem; size: Size; placeme
         <p
           className={`font-semibold text-foreground transition-colors group-hover:text-accent ${
             major
-              ? // Three lines at ~505px wide takes a ~100-character headline
-                // whole, so the majors rarely truncate at all. (That width is
-                // after the movers rail took ~200px off the panel; it was ~560
-                // when the digest ran the full page.)
-                "line-clamp-3 text-base leading-snug xl:text-lg"
+              ? // Two lines at ~505px takes a ~70-character headline whole, which
+                // most of them are. Sized so that four majors and six minors fit
+                // the panel outright — the digest is read in one pass at 9am, and
+                // a summary you have to scroll is not a summary.
+                "line-clamp-2 text-sm leading-snug xl:text-base"
               : "line-clamp-2 text-xs leading-tight"
           }`}
         >
@@ -156,8 +158,8 @@ function Cell({ item, size, placement }: { item: DigestItem; size: Size; placeme
         <p
           className={`text-muted-foreground ${
             major
-              ? "mt-2 line-clamp-3 text-sm leading-snug"
-              : "mt-1 line-clamp-2 text-xs leading-tight"
+              ? "mt-1 line-clamp-2 text-xs leading-snug"
+              : "mt-0.5 line-clamp-1 text-xs leading-tight"
           }`}
         >
           {item.whyItMatters}
@@ -170,10 +172,18 @@ function Cell({ item, size, placement }: { item: DigestItem; size: Size; placeme
 }
 
 /** Shared shell, so every state keeps the same masthead and panel footprint. */
-function Panel({ meta, children }: { meta: React.ReactNode; children: React.ReactNode }) {
+function Panel({
+  meta,
+  children,
+  className = "overflow-hidden border border-border bg-card",
+}: {
+  meta: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <section className="overflow-hidden rounded-xl bg-card">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-4 py-2">
+    <section className={className}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-3 py-1">
         <div className="flex items-baseline gap-2">
           {/* Uppercase and tracked out: this is the page's lead block and reads
               as a wire masthead rather than another panel label. Size stays at
@@ -197,10 +207,10 @@ function Panel({ meta, children }: { meta: React.ReactNode; children: React.Reac
   );
 }
 
-export default function MarketDigestPanel({ digest, error }: Props) {
+export default function MarketDigestPanel({ digest, error, className }: Props) {
   if (!digest || digest.items.length === 0) {
     return (
-      <Panel meta={<span>Runs 9:00 AM ET daily</span>}>
+      <Panel className={className} meta={<span>Runs 9:00 AM ET daily</span>}>
         <p className="px-4 py-3 text-xs text-muted-foreground">
           {error
             ? // Surfaced rather than swallowed: a missing table and a quiet
@@ -230,6 +240,7 @@ export default function MarketDigestPanel({ digest, error }: Props) {
 
   return (
     <Panel
+      className={className}
       meta={
         <>
           <span className="font-semibold tracking-[0.14em] text-foreground/80">
@@ -259,7 +270,11 @@ export default function MarketDigestPanel({ digest, error }: Props) {
           60%, the six minors are 2x2 and fill the right 40%. Below xl the split
           is meaningless at that width, so the cells drop their spans and run as
           a plain two-column list in rank order — majors first. */}
-      <ol className="grid gap-px bg-border md:grid-cols-2 xl:grid-cols-10 xl:grid-rows-6">
+      {/* min-h-0 flex-1 so the grid fills the panel exactly rather than sizing
+          to its content. That is what makes overflow-hidden safe on the panel:
+          the six rows divide whatever height there is, and a long story clamps
+          its own text instead of pushing the grid past the bottom edge. */}
+      <ol className="grid min-h-0 flex-1 gap-px bg-border md:grid-cols-2 xl:grid-cols-10 xl:grid-rows-6">
         {slots.map(({ placement, size, item }, i) =>
           item ? (
             <Cell key={`${item.rank}-${item.url}`} item={item} size={size} placement={placement} />

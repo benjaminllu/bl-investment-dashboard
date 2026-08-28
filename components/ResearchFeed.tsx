@@ -12,6 +12,8 @@ interface Props {
   articles: SubstackArticle[];
   watchlistNews: NewsItem[];
   marketNews: NewsItem[];
+  /** Root classes. Defaults to the card treatment; the Console preview flattens it. */
+  className?: string;
 }
 
 function NewsCard({ item }: { item: NewsItem }) {
@@ -61,7 +63,15 @@ function NewsCard({ item }: { item: NewsItem }) {
   );
 }
 
-export default function ResearchFeed({ articles, watchlistNews, marketNews }: Props) {
+export default function ResearchFeed({
+  articles,
+  watchlistNews,
+  marketNews,
+  // flex column on lg so the tab row stays pinned and only the list scrolls;
+  // natural height on mobile, where the feed is just the last thing on a
+  // stacked page and has nothing to align to.
+  className = "flex flex-col overflow-hidden border border-border bg-card lg:h-full",
+}: Props) {
   const [active, setActive] = useState<Tab>("Market News");
 
   useEffect(() => {
@@ -76,10 +86,7 @@ export default function ResearchFeed({ articles, watchlistNews, marketNews }: Pr
   }, [active]);
 
   return (
-    // flex column on lg so the tab row stays pinned and only the list scrolls;
-    // natural height on mobile, where the feed is just the last thing on a
-    // stacked page and has nothing to align to.
-    <div className="flex flex-col overflow-hidden rounded-xl bg-card lg:h-full">
+    <div className={className}>
       <div className="flex shrink-0 border-b border-border">
         {TABS.map((tab) => (
           <button

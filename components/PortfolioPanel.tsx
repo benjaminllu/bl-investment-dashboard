@@ -44,7 +44,7 @@ function Metric({
 
 function Group({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl bg-card p-4">
+    <div className="border border-border bg-card p-4">
       <h3 className="mb-3 text-sm font-semibold text-foreground">{heading}</h3>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">{children}</div>
     </div>
@@ -208,7 +208,7 @@ export default function PortfolioPanel({
       </div>
 
       {fundamentalsUnavailable ? (
-        <div className="rounded-xl bg-card p-4">
+        <div className="border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">
             Exposure data could not be loaded, so this is not a statement about what you are
             exposed to. If <code className="text-muted-foreground/80">stock_fundamentals</code> is
@@ -341,7 +341,7 @@ export default function PortfolioPanel({
 
           {riskWindows.length > 0 && (
             <div className="grid gap-3 xl:grid-cols-[2fr_1fr]">
-              <div className="overflow-hidden rounded-xl bg-card p-4">
+              <div className="overflow-hidden border border-border bg-card p-4">
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <h3 className="text-sm font-semibold text-foreground">
                     Risk-Adjusted Return{" "}
@@ -425,7 +425,7 @@ export default function PortfolioPanel({
                 </p>
               </div>
 
-              <div className="rounded-xl bg-card p-4">
+              <div className="border border-border bg-card p-4">
                 <h3 className="mb-3 text-sm font-semibold text-foreground">
                   Beta Contribution
                 </h3>

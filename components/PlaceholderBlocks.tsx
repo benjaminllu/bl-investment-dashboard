@@ -39,7 +39,7 @@ function BlockIcon() {
 
 function PlaceholderCard({ block }: { block: Block }) {
   return (
-    <div className="rounded-xl bg-card p-4">
+    <div className="border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-foreground">{block.label}</h2>
         <BlockIcon />
@@ -102,14 +102,14 @@ export default function PlaceholderBlocks({
   columns = 4,
 }: PlaceholderBlocksProps) {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-full">
       <div className="mx-auto max-w-screen-3xl p-4">
         <div className="mb-4">
           {/* The blocks below carry chart icons and read as real modules that
               failed to load. The badge on the title is what tells you they are
               unbuilt rather than broken. */}
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+            <h1 className="text-sm font-semibold text-foreground">{title}</h1>
             <WipBadge title={`The ${title} page has not been built yet — the blocks below are empty placeholders.`} />
           </div>
           {description && (
