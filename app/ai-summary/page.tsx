@@ -47,7 +47,7 @@ async function generateSummaries(
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `You are a concise financial analyst. Below are the ${stories.length} most important market stories of ${date}, ranked, each with a one-line desk note. For each, write a single focused paragraph of three to four sentences explaining what the story is about and its potential implications for investors. Work only from the headline and the note: never invent a number, a date, a quote or an outcome. Be direct and factual.\n\nReturn one entry per story, with its rank copied exactly.\n\nSTORIES:\n${list}`,
+            text: `You are a concise financial analyst. Below are the ${stories.length} most important market stories of ${date}, ranked, each with a one-line desk note. For each, write a single focused paragraph of three to four sentences explaining what the story is about and its potential implications for investors. Work only from the headline and the note: never invent a number, a date, a quote or an outcome, and never add a title, role or background fact about a person or company that the headline does not state — refer to people exactly as the headline does. Be direct and factual.\n\nReturn one entry per story, with its rank copied exactly.\n\nSTORIES:\n${list}`,
           }],
         }],
         generationConfig: {
@@ -115,60 +115,105 @@ function formatDate(iso: string): string {
   });
 }
 
+function formatTime(unix: number | null): string | null {
+  if (unix === null) return null;
+  return new Date(unix * 1000).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  });
+}
+
+/**
+ * One story, in the home digest panel's vocabulary: rank, category and tickers
+ * on the index line, the desk note as a standfirst, provenance pinned to the
+ * foot so it shares a baseline across each row of the grid.
+ */
+function Story({ item, summary }: { item: DigestItem; summary: string | undefined }) {
+  const time = formatTime(item.articleDatetime);
+  return (
+    <li className="flex min-w-0 flex-col bg-card p-4">
+      <div className="mb-2 flex items-baseline gap-2">
+        {/* /50 rather than /40: measured 5.2:1 on the card in MarketDigestPanel. */}
+        <span className="shrink-0 text-xl font-semibold leading-none tabular-nums text-foreground/50">
+          {String(item.rank).padStart(2, "0")}
+        </span>
+        <span className="truncate text-xs uppercase tracking-[0.14em] text-muted-foreground">
+          {item.category}
+        </span>
+        {item.tickers.length > 0 && (
+          <span className="ml-auto shrink-0 text-xs font-medium tabular-nums tracking-wide text-foreground/80">
+            {item.tickers.join(" ")}
+          </span>
+        )}
+      </div>
+
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-base font-semibold leading-snug text-foreground transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {item.headline}
+      </a>
+      <p className="mt-1 text-sm leading-snug text-muted-foreground">{item.whyItMatters}</p>
+
+      {/* Capped at a reading measure: on a wide screen a cell runs past 1000px,
+          and a paragraph that long is hard to track line to line. 85ch is
+          about the width of a two-line headline, so the block reads as one. */}
+      {summary ? (
+        <p className="mt-3 max-w-[85ch] text-sm leading-relaxed text-foreground/90">{summary}</p>
+      ) : (
+        <p className="mt-3 text-sm text-muted-foreground">
+          {process.env.GEMINI_API_KEY
+            ? "Failed to generate summary."
+            : "Add GEMINI_API_KEY to enable AI analysis."}
+        </p>
+      )}
+
+      <p className="mt-auto flex gap-1 pt-3 text-xs uppercase tracking-wide text-muted-foreground">
+        <span className="truncate">{item.source}</span>
+        {time && <span className="shrink-0">· {time}</span>}
+      </p>
+    </li>
+  );
+}
+
 export default async function AISummaryPage() {
   const { digest, error } = await fetchMarketDigest();
   const top = digest ? digest.items.slice(0, TOP_N) : [];
   const summaries = digest && top.length > 0 ? await getSummaries(digest.date, top) : null;
 
   return (
-    <main className="min-h-full">
-      <div className="mx-auto max-w-screen-3xl p-4">
-        <div className="mb-4">
-          <h1 className="text-sm font-semibold text-foreground">AI Summary</h1>
-          {/* Without this the page reads as reporting: the model only ever sees
-              the headline and the digest's one-line note, never the article. */}
-          <p className="mt-1 text-sm text-muted-foreground">
-            The top {TOP_N} stories from the {digest ? formatDate(digest.date) : "latest"} market
-            digest, explained by Gemini from the headline alone.
-          </p>
-        </div>
-
-        {top.length === 0 && (
-          <p className="text-muted-foreground">
-            {error ? "The market digest could not be loaded." : "No market digest available yet."}
-          </p>
-        )}
-
-        {top.length > 0 && (
-          <ol className="max-w-3xl divide-y divide-border border border-border bg-card">
-            {top.map((item) => (
-              <li key={item.rank} className="p-4">
-                <p className="mb-1 text-xs text-muted-foreground">
-                  <span className="tabular-nums">{String(item.rank).padStart(2, "0")}</span>
-                  &nbsp;•&nbsp;{item.category}&nbsp;•&nbsp;{item.source}
-                </p>
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mb-2 block text-base font-semibold text-foreground hover:text-accent"
-                >
-                  {item.headline}
-                </a>
-                {summaries?.[item.rank] ? (
-                  <p className="text-sm leading-relaxed text-foreground/90">{summaries[item.rank]}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {process.env.GEMINI_API_KEY
-                      ? "Failed to generate summary."
-                      : "Add GEMINI_API_KEY to enable AI analysis."}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
+    <main className="flex min-h-full flex-col gap-3 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h1 className="text-sm font-semibold text-foreground">AI Summary</h1>
+        {/* Without this the page reads as reporting: the model only ever sees
+            the headline and the digest's one-line note, never the article. */}
+        <p className="text-xs text-muted-foreground">
+          Top {TOP_N} from the {digest ? formatDate(digest.date) : "latest"} market digest ·
+          explained by Gemini from the headline alone
+        </p>
       </div>
+
+      {top.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          {error ? "The market digest could not be loaded." : "No market digest available yet."}
+        </p>
+      )}
+
+      {/* Regions, not cards: the 1px gap shows the border colour through, as on
+          the home board. Two by two from xl so all four sit on one screen.
+          Rows hug their content rather than filling the viewport, which left a
+          tall empty band in every cell; grid stretch still keeps the two cells
+          of a row equal, so the foot lines stay aligned. */}
+      {top.length > 0 && (
+        <ol className="grid gap-px border border-border bg-border xl:grid-cols-2">
+          {top.map((item) => (
+            <Story key={item.rank} item={item} summary={summaries?.[item.rank]} />
+          ))}
+        </ol>
+      )}
     </main>
   );
 }
