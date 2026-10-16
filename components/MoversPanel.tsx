@@ -183,16 +183,15 @@ export default function MoversPanel({
   compact = false,
 }: {
   stocks: MoverStock[];
-  /** Root classes. Defaults to the card treatment; the Console preview flattens it. */
+  /** Root classes. Defaults to the card treatment; HomeBoard flattens it. */
   className?: string;
   /**
    * One line per mover instead of two, dropping the company name and tightening
    * the header, so all six fit a 13rem rail without a scroller.
    *
-   * A variant rather than the new default: on the home page this panel is sized
-   * by the digest beside it and the two-line form already fits, so switching
-   * everything over would trade a readable panel for empty space. If the Console
-   * format is adopted, compact becomes the default and this flag goes away.
+   * HomeBoard and the Desk preview both pass it, so the two-line form has no
+   * caller left. Once the Desk preview is settled, compact can become the only
+   * form and this flag can go.
    */
   compact?: boolean;
 }) {

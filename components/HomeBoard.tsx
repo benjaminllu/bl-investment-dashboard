@@ -100,8 +100,12 @@ export default function HomeBoard({
     // a summary you have to scroll is not a summary. Row two holds the chart.
     // The watchlist takes what is left — it is the one panel that reads fine at
     // any height, because a table simply shows fewer rows.
-    <div className="grid h-full grid-cols-[minmax(0,1fr)_20rem] grid-rows-[21rem_19rem_minmax(0,1fr)] gap-px bg-border">
-      <div className="col-span-2 col-start-1 row-start-1 grid min-h-0 grid-cols-[minmax(0,1fr)_13rem] gap-px bg-border">
+    //
+    // Below xl the 20rem rail would leave the chart and table a sliver, so the
+    // regions stack and the shell scrolls. At xl the min-height floor keeps
+    // 16rem for the table on a short laptop screen instead of letting 1fr hit 0.
+    <div className="flex flex-col gap-px bg-border xl:grid xl:h-full xl:min-h-[56rem] xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-[21rem_19rem_minmax(0,1fr)]">
+      <div className="col-span-2 col-start-1 row-start-1 flex min-h-0 flex-col gap-px bg-border xl:grid xl:grid-cols-[minmax(0,1fr)_13rem]">
         <MarketDigestPanel
           digest={digest}
           error={digestError}
@@ -117,8 +121,9 @@ export default function HomeBoard({
       {/* The earnings table needs 22rem to seat six columns without scrolling
           sideways. The chart gives it up: a chart is elastic, a table of fixed
           columns is not. */}
-      <div className="col-start-1 row-start-2 grid min-h-0 grid-cols-[minmax(0,1fr)_22rem] gap-px bg-border">
+      <div className="col-start-1 row-start-2 flex min-h-0 flex-col gap-px bg-border xl:grid xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Panel
+          className="flex h-[19rem] min-h-0 min-w-0 flex-col bg-background xl:h-auto"
           label={selected ?? "Chart"}
           meta={
             <span className="flex items-center gap-1">
@@ -155,7 +160,7 @@ export default function HomeBoard({
           selected={selected}
           onSelect={setSelected}
           unavailable={earningsUnavailable}
-          className="flex min-h-0 flex-col bg-background p-2"
+          className="flex h-[19rem] min-h-0 flex-col bg-background p-2 xl:h-auto"
         />
       </div>
 
@@ -163,10 +168,10 @@ export default function HomeBoard({
         articles={articles}
         watchlistNews={watchlistNews}
         marketNews={marketNews}
-        className="col-start-2 row-span-2 row-start-2 flex min-h-0 flex-col overflow-hidden bg-background"
+        className="order-last col-start-2 row-span-2 row-start-2 flex h-[32rem] min-h-0 flex-col overflow-hidden bg-background xl:order-none xl:h-auto"
       />
 
-      <section className="col-start-1 row-start-3 flex min-h-0 flex-col bg-background">
+      <section className="col-start-1 row-start-3 flex h-[36rem] min-h-0 flex-col bg-background xl:h-auto">
         {/* Scrolls rather than wrapping, so nineteen categories never break to a
             second line and cost the table a row. */}
         <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border px-2 [&::-webkit-scrollbar]:hidden">

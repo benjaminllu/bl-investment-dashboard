@@ -7,14 +7,11 @@ import type { IndexQuote, IndexRow } from "@/lib/indexQuotes";
 import type { TreasuryYields } from "@/lib/fred";
 
 /**
- * Pieces shared by the two format previews (Console and Desk).
+ * The app shell's building blocks: icon rail, one-line tape, hairline panels.
  *
- * Both formats use the same shell vocabulary — icon rail, one-line tape,
- * hairline panels — and differ only in how many destinations the rail carries
- * and what fills the grid. Keeping these here means a change to the tape shows
- * up in both previews rather than in whichever one happened to get edited.
- *
- * Preview-only, like everything in this folder. Delete with it.
+ * Production code. AppShell and HomeBoard render these on every page. The Desk
+ * format preview (components/preview/) borrows them too, so deleting that
+ * preview means deleting its imports of this file, not this file.
  */
 
 export const NAV_ICONS = {
@@ -179,7 +176,7 @@ export function Tape({
   yields: TreasuryYields;
 }) {
   return (
-    <div className="flex h-8 shrink-0 items-center gap-4 overflow-hidden border-b border-border px-2 text-xs">
+    <div className="flex h-8 shrink-0 items-center gap-4 overflow-hidden px-2 text-xs">
       <span className="shrink-0 border-r border-border pr-3 font-serif text-sm italic">
         Ben&rsquo;s Investment Research
       </span>

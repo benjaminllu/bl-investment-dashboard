@@ -74,7 +74,7 @@ type Props = {
   onSelect: (ticker: string) => void;
   /** The query failed, so emptiness here says nothing about the schedule. */
   unavailable?: boolean;
-  /** Root classes. Defaults to the card treatment; the Console preview flattens it. */
+  /** Root classes. Defaults to the card treatment; HomeBoard flattens it. */
   className?: string;
 };
 

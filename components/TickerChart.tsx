@@ -9,7 +9,7 @@ interface Props {
   studies: ChartStudy[];
   /**
    * Wrapper classes. Defaults to the card-shaped glance-row treatment every
-   * current caller wants; the Console format preview passes a flat one instead.
+   * caller on Research wants; HomeBoard passes a flat one instead.
    */
   className?: string;
 }

@@ -25,5 +25,5 @@
     "baseUrl": ".",
     "paths": { "@/*": ["./*"] }
   },
-  "files": ["scripts/verifyRiskNarrative.ts", "scripts/verifyRiskMetrics.ts", "scripts/previewRiskWindows.ts", "scripts/verifyKoreaLeverage.ts", "scripts/verifyRotation.ts"]
+  "files": ["scripts/verifyRiskNarrative.ts", "scripts/verifyRiskMetrics.ts", "scripts/previewRiskWindows.ts", "scripts/verifyKoreaLeverage.ts", "scripts/verifyRotation.ts", "scripts/verifyCycle.ts"]
 }

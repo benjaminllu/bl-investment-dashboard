@@ -254,18 +254,17 @@ function quadrantOf(x: number, y: number): Quadrant {
   return y >= 0 ? "improving" : "lagging";
 }
 
-function buildRrgGroup(
-  id: SectorTier,
-  label: string,
-  note: string,
+/**
+ * The two raw RRG axes per ticker, before cross-sectional normalisation.
+ *
+ * Shared by the live graph and `computeEfficacy`, so the efficacy panel always
+ * scores the exact signal the graph displays.
+ */
+function rrgAxes(
   tickers: string[],
   weeklyCloses: Record<string, number[]>,
-  weeklyDates: string[],
   benchmark: number[],
-): RrgGroup | null {
-  const n = benchmark.length;
-  if (n < RRG_SLOW + RRG_MOMENTUM + MAX_TAIL) return null;
-
+): { rel: Record<string, (number | null)[]>; mom: Record<string, (number | null)[]> } {
   // Relative strength measured against its own trend. The fast average takes
   // the week-to-week noise out of the numerator; without it the ratio jitters
   // enough that the momentum axis is mostly measuring last week's close.
@@ -281,6 +280,22 @@ function buildRrgGroup(
     rel[t] = r;
     mom[t] = diff(r, RRG_MOMENTUM);
   }
+  return { rel, mom };
+}
+
+function buildRrgGroup(
+  id: SectorTier,
+  label: string,
+  note: string,
+  tickers: string[],
+  weeklyCloses: Record<string, number[]>,
+  weeklyDates: string[],
+  benchmark: number[],
+): RrgGroup | null {
+  const n = benchmark.length;
+  if (n < RRG_SLOW + RRG_MOMENTUM + MAX_TAIL) return null;
+
+  const { rel, mom } = rrgAxes(tickers, weeklyCloses, benchmark);
 
   const points: Record<string, RrgPoint[]> = Object.fromEntries(tickers.map((t) => [t, []]));
   const dates: string[] = [];
@@ -905,10 +920,12 @@ export function computeRotation(universe: Universe): RotationData {
  * question is the one actually being asked: given two sectors, did the quadrant
  * tell you which to hold?
  *
- * WHAT THIS IS NOT. It is in-sample, it is five years, and overlapping windows
- * across eleven correlated sectors mean the observation counts are far larger
- * than the number of independent observations behind them — a 26-week horizon
- * over five years is roughly nine non-overlapping periods. No significance test
+ * WHAT THIS IS NOT. It is in-sample, it starts in mid-2018 (XLC's launch bounds
+ * the aligned sector grid), and overlapping windows across eleven correlated
+ * sectors mean the observation counts are far larger than the number of
+ * independent observations behind them — after a year of warm-up and six
+ * months held back for the forward returns, a 26-week horizon has only about
+ * a dozen non-overlapping periods. No significance test
  * is reported because none of them would survive one. It is here to keep the
  * rest of the page honest, not to justify a trade.
  */
@@ -928,18 +945,7 @@ function computeEfficacy(
   const weeklyBench = weeklyIndex.map((i) => bench[i]);
 
   // Same construction as the live graph, run over the whole history.
-  const rel: Record<string, (number | null)[]> = {};
-  const mom: Record<string, (number | null)[]> = {};
-  for (const t of SECTOR_TICKERS) {
-    const rs = weeklyClose[t].map((c, i) => c / weeklyBench[i]);
-    const fast = sma(rs, RRG_FAST);
-    const slow = sma(rs, RRG_SLOW);
-    const r = rs.map((_, i) =>
-      fast[i] === null || slow[i] === null ? null : (fast[i] as number) / (slow[i] as number) - 1,
-    );
-    rel[t] = r;
-    mom[t] = diff(r, RRG_MOMENTUM);
-  }
+  const { rel, mom } = rrgAxes(SECTOR_TICKERS, weeklyClose, weeklyBench);
 
   // Momentum score on weekly bars: 12-1 and 6M and 3M, in weeks.
   const WEEKS = { "3M": 13, "6M": 26, "12M": 52, "1M": 4 };

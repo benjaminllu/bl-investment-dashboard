@@ -32,7 +32,7 @@
  * every single day, in the one comparison this page exists to make.
  */
 
-import { fetchUniverse, type Bar, type Universe } from "./marketBars";
+import type { Bar, Universe } from "./marketBars";
 import { trimFloats } from "./precision";
 
 export const BENCHMARK = "SPY";
@@ -201,10 +201,4 @@ export function computeSectorTable(universe: Universe): SectorsData {
     asOf: benchmarkBars[benchmarkBars.length - 1].date,
     unavailable: false,
   });
-}
-
-export async function fetchSectors(): Promise<SectorsData> {
-  return computeSectorTable(
-    await fetchUniverse([BENCHMARK, ...SECTOR_DEFS.map((d) => d.ticker)]),
-  );
 }

@@ -12,7 +12,7 @@ interface Props {
   articles: SubstackArticle[];
   watchlistNews: NewsItem[];
   marketNews: NewsItem[];
-  /** Root classes. Defaults to the card treatment; the Console preview flattens it. */
+  /** Root classes. Defaults to the card treatment; HomeBoard flattens it. */
   className?: string;
 }
 

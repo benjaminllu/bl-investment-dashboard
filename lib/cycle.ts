@@ -37,6 +37,8 @@
  * nothing on this page sizes a position from it.
  */
 
+import { percentileRank } from "./series";
+
 export type CyclePhase = "early" | "mid" | "late" | "recession";
 
 export const CYCLE_PHASES: CyclePhase[] = ["early", "mid", "late", "recession"];
@@ -152,11 +154,6 @@ async function fetchSeries(def: SeriesDef, apiKey: string): Promise<Observation[
   }
 }
 
-function percentile(values: number[], value: number): number | null {
-  if (values.length < 20) return null;
-  return (values.filter((v) => v < value).length / values.length) * 100;
-}
-
 export async function fetchCycle(): Promise<CycleData> {
   const apiKey = process.env.FRED_API_KEY;
   const unavailable: CycleData = {
@@ -193,7 +190,7 @@ export async function fetchCycle(): Promise<CycleData> {
     const last = obs[obs.length - 1];
     const prior = obs[obs.length - 1 - def.quarterLag];
     const change3m = prior ? last.value - prior.value : null;
-    const pct = percentile(obs.map((o) => o.value), last.value);
+    const pct = percentileRank(obs.map((o) => o.value), last.value);
     latest[def.id] = { value: last.value, change3m, percentile: pct };
     inputs.push({
       id: def.id,
@@ -274,7 +271,7 @@ function fmt(value: number, decimals = 2): string {
   return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(decimals)}`;
 }
 
-function classify(
+export function classify(
   activity: number,
   activityChange: number | null,
   credit: { value: number; percentile: number | null } | null,

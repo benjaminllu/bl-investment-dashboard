@@ -306,7 +306,7 @@ type StockTableProps = {
   onSelect?: (ticker: string) => void;
   /**
    * Scroller classes. Defaults to the card treatment with its own viewport-
-   * relative cap; the Console format preview passes a flat, parent-sized one.
+   * relative cap; HomeBoard passes a flat, parent-sized one.
    */
   className?: string;
   /**

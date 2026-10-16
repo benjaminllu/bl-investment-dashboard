@@ -5,7 +5,7 @@ interface Props {
   digest: MarketDigest | null;
   /** Query-level failure, distinct from "the job has not run yet". */
   error: string | null;
-  /** Root classes. Defaults to the card treatment; the Console preview flattens it. */
+  /** Root classes. Defaults to the card treatment; HomeBoard flattens it. */
   className?: string;
 }
 
