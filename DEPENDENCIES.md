@@ -18,7 +18,7 @@ This is a personal project — no SLA is expected from any of the unauthenticate
 | [Cboe](#cboe-vix--vixeq) | VIX / VIXEQ | None (requires User-Agent) | — | Unpublished | 3600s |
 | [KOFIA FreeSIS](#kofia-freesis-korean-retail-leverage-unofficial) | Korean margin debt, deposits, forced sales, KOSPI/KOSDAQ market cap | None (requires User-Agent + Referer) | — | Unofficial, unpublished | 3600s |
 | [SEC EDGAR](#sec-edgar) | Insider transactions (Form 4) | None — descriptive `User-Agent` required | `SEC_USER_AGENT` | 10 req/s per IP, no daily cap | Nightly job writes to Supabase; read live, no app-level cache |
-| [Google Gemini](#google-gemini) | AI summary, daily market digest | API key (query param) | `GEMINI_API_KEY` | Free-tier quota (model/tier-dependent) | 900s (`/ai-summary`); digest is written once a day to Supabase, not cached in-app |
+| [Google Gemini](#google-gemini) | AI summary, daily market digest | API key (query param) | `GEMINI_API_KEY` | Free-tier quota (model/tier-dependent) | Per digest day (`/ai-summary`); digest is written once a day to Supabase, not cached in-app |
 | [Substack](#substack) | Research feed | None | — | Unpublished, per-publication | No cache (`no-store`) |
 | [TradingView](#tradingview) | Chart widget | None | — | N/A (client embed) | N/A |
 | [Twitter/X](#twitterx) | Timeline embed | None | — | N/A (client embed) | N/A |
@@ -229,7 +229,9 @@ Three endpoints, all confirmed live rather than from secondhand docs:
 ## AI
 
 ### Google Gemini
-`app/ai-summary/page.tsx` calls `generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` to write a one-paragraph analysis of the latest market headline. Key via `key=` query param (`GEMINI_API_KEY`). Free tier (per `README.md`); exact current quota not independently re-verified here since Gemini's free-tier limits are model- and account-tier-specific and change periodically — check Google AI Studio's own quota page if this starts failing. Cached via `unstable_cache` with a 900s revalidate, and **only successful generations are cached** — a failed request retries fresh on the next load rather than being stuck behind the cache window until it expires.
+`app/ai-summary/page.tsx` calls `generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` to write a one-paragraph analysis of each of the **top four stories in the latest market digest** (below), all four in **one request** with structured output. Key via `key=` query param (`GEMINI_API_KEY`). Free tier (per `README.md`). Cached via `unstable_cache` keyed on the digest's date and stories, so the key changes once a day: **one request per digest day**, however often the page is opened. **Only successful generations are cached**: a failed request retries fresh on the next load. Thinking is off (`thinkingBudget: 0`); measured 2026-10-15 at **281 input / 342 output / 0 thinking tokens** per call.
+
+**Free-tier budget.** Google's rate-limits page no longer publishes free-tier numbers and points to AI Studio, and third-party reports for 2.5-flash range from ~20 requests/day (late 2025) to 1,500/day (2026). Planned against the worst case: this project spends about **2 requests/day** (1 digest + 1 summary; up to 4 if the digest retries) and **under ~10k tokens/day**. The previous `/ai-summary` design called once per new top headline on a 900s cache, so it scaled with page views; the current one does not. Check Google AI Studio's quota page for the account's actual limits if either caller starts returning 429.
 
 **Second caller — the daily market digest.** `scripts/generate-market-digest.js` calls the same model to rank the ten most important stories of the last 24 hours for the AI Market Summary block on the home page, once a day at 9am ET via `.github/workflows/market-digest.yml`. This is the only integration that needs `GEMINI_API_KEY` set as a **GitHub Actions secret** as well as in Vercel.
 

@@ -1,11 +1,43 @@
 import { unstable_cache } from "next/cache";
-import { fetchMarketNews } from "@/lib/finnhubNews";
-import WipBadge from "@/components/WipBadge";
-import { thumbnailUrl } from "@/lib/thumbnails";
+import { fetchMarketDigest, type DigestItem } from "@/lib/marketDigest";
 
-async function generateGeminiSummary(headline: string, source: string): Promise<string> {
+/** The 9am digest has already ranked the day's wire; this page explains its top four. */
+const TOP_N = 4;
+
+const RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    summaries: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          rank: { type: "integer" },
+          summary: { type: "string" },
+        },
+        required: ["rank", "summary"],
+        propertyOrdering: ["rank", "summary"],
+      },
+    },
+  },
+  required: ["summaries"],
+};
+
+/**
+ * One request for all four stories, not one per story: the free tier is
+ * budgeted in requests per day, and the 9am digest job already spends one to
+ * three of them.
+ */
+async function generateSummaries(
+  date: string,
+  stories: { rank: number; headline: string; source: string; whyItMatters: string }[],
+): Promise<Record<number, string>> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY not set");
+
+  const list = stories
+    .map((s) => `${s.rank}\t[${s.source}] ${s.headline}\n\tDesk note: ${s.whyItMatters}`)
+    .join("\n");
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
@@ -15,10 +47,18 @@ async function generateGeminiSummary(headline: string, source: string): Promise<
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `You are a concise financial analyst. Based on this news headline from ${source}, write a single focused paragraph explaining what this story is about and its potential implications for investors. Do not speculate beyond what the headline suggests. Be direct and factual.\n\nHeadline: "${headline}"`,
+            text: `You are a concise financial analyst. Below are the ${stories.length} most important market stories of ${date}, ranked, each with a one-line desk note. For each, write a single focused paragraph of three to four sentences explaining what the story is about and its potential implications for investors. Work only from the headline and the note: never invent a number, a date, a quote or an outcome. Be direct and factual.\n\nReturn one entry per story, with its rank copied exactly.\n\nSTORIES:\n${list}`,
           }],
         }],
-        generationConfig: { maxOutputTokens: 1600, temperature: 0.3 },
+        generationConfig: {
+          temperature: 0.3,
+          // Paraphrasing four headlines needs no reasoning pass, and 2.5-flash
+          // bills thinking against maxOutputTokens. Off, a call is ~1k tokens.
+          thinkingConfig: { thinkingBudget: 0 },
+          maxOutputTokens: 2000,
+          responseMimeType: "application/json",
+          responseSchema: RESPONSE_SCHEMA,
+        },
       }),
       cache: "no-store",
     }
@@ -26,31 +66,48 @@ async function generateGeminiSummary(headline: string, source: string): Promise<
 
   if (!res.ok) throw new Error(`Gemini request failed: ${res.status}`);
   const data = await res.json();
+  const usage = data?.usageMetadata;
+  console.log(
+    `[ai-summary] gemini tokens in/out/thinking: ${usage?.promptTokenCount}/${usage?.candidatesTokenCount}/${usage?.thoughtsTokenCount ?? 0}`
+  );
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Gemini response missing summary text");
-  return text;
+
+  const wanted = new Set(stories.map((s) => s.rank));
+  const out: Record<number, string> = {};
+  for (const item of JSON.parse(text).summaries ?? []) {
+    if (wanted.has(item.rank) && typeof item.summary === "string" && item.summary.trim()) {
+      out[item.rank] = item.summary.trim();
+    }
+  }
+  if (Object.keys(out).length === 0) throw new Error("Gemini returned no usable summaries");
+  return out;
 }
 
 // Only successful generations are cached (unstable_cache never caches a thrown
-// error), so a failed request always retries fresh on the next page load
-// instead of being stuck behind the 15-minute revalidate window.
-const getCachedGeminiSummary = unstable_cache(
-  generateGeminiSummary,
-  ["gemini-summary"],
-  { revalidate: 900 }
-);
+// error), so a failed request always retries fresh on the next page load.
+// The arguments are the digest's date and stories, so the key changes once a
+// day when the digest does: one Gemini request per day, however often the page
+// is opened.
+const getCachedSummaries = unstable_cache(generateSummaries, ["ai-summary-top4"], {
+  revalidate: 86400,
+});
 
-async function getGeminiSummary(headline: string, source: string): Promise<string | null> {
+async function getSummaries(date: string, items: DigestItem[]): Promise<Record<number, string> | null> {
   if (!process.env.GEMINI_API_KEY) return null;
   try {
-    return await getCachedGeminiSummary(headline, source);
-  } catch {
+    return await getCachedSummaries(
+      date,
+      items.map(({ rank, headline, source, whyItMatters }) => ({ rank, headline, source, whyItMatters })),
+    );
+  } catch (e) {
+    console.error("[ai-summary] summary generation failed:", e);
     return null;
   }
 }
 
-function formatDate(unix: number): string {
-  return new Date(unix * 1000).toLocaleDateString("en-US", {
+function formatDate(iso: string): string {
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -59,73 +116,57 @@ function formatDate(unix: number): string {
 }
 
 export default async function AISummaryPage() {
-  const articles = await fetchMarketNews();
-  const article = articles[0] ?? null;
-  const summary = article ? await getGeminiSummary(article.headline, article.source) : null;
+  const { digest, error } = await fetchMarketDigest();
+  const top = digest ? digest.items.slice(0, TOP_N) : [];
+  const summaries = digest && top.length > 0 ? await getSummaries(digest.date, top) : null;
 
   return (
     <main className="min-h-full">
       <div className="mx-auto max-w-screen-3xl p-4">
         <div className="mb-4">
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-semibold text-foreground">AI Summary</h1>
-            <WipBadge title="Summarises only the single latest market headline. Multi-story and per-ticker summaries are not built yet." />
-          </div>
-          {/* Without this the page reads as finished: one polished card gives no
-              hint that it is the top story only, rather than a digest. */}
+          <h1 className="text-sm font-semibold text-foreground">AI Summary</h1>
+          {/* Without this the page reads as reporting: the model only ever sees
+              the headline and the digest's one-line note, never the article. */}
           <p className="mt-1 text-sm text-muted-foreground">
-            Currently summarises the latest market headline only — not a digest of the day.
+            The top {TOP_N} stories from the {digest ? formatDate(digest.date) : "latest"} market
+            digest, explained by Gemini from the headline alone.
           </p>
         </div>
 
-        {!article && (
-          <p className="text-muted-foreground">No market news available.</p>
+        {top.length === 0 && (
+          <p className="text-muted-foreground">
+            {error ? "The market digest could not be loaded." : "No market digest available yet."}
+          </p>
         )}
 
-        {article && (
-          <div className="max-w-2xl border border-border bg-card p-4">
-            {article.image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={thumbnailUrl(article.image, 1344, 384)}
-                alt=""
-                // 672x192 at 2x — the card is max-w-2xl and the image is h-48.
-                // Not lazy: this is the hero, above the fold on every load.
-                width={1344}
-                height={384}
-                decoding="async"
-                className="mb-4 h-48 w-full rounded-lg object-cover"
-              />
-            )}
-
-            <p className="mb-1 text-xs text-muted-foreground">
-              {article.source} &nbsp;•&nbsp; {formatDate(article.datetime)}
-            </p>
-
-            <a
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mb-4 block text-lg font-semibold text-foreground hover:text-accent"
-            >
-              {article.headline}
-            </a>
-
-            <div className="border-t border-border pt-4">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">
-                AI Analysis
-              </p>
-              {summary ? (
-                <p className="text-sm leading-relaxed text-foreground/90">{summary}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {process.env.GEMINI_API_KEY
-                    ? "Failed to generate summary."
-                    : "Add GEMINI_API_KEY to enable AI analysis."}
+        {top.length > 0 && (
+          <ol className="max-w-3xl divide-y divide-border border border-border bg-card">
+            {top.map((item) => (
+              <li key={item.rank} className="p-4">
+                <p className="mb-1 text-xs text-muted-foreground">
+                  <span className="tabular-nums">{String(item.rank).padStart(2, "0")}</span>
+                  &nbsp;•&nbsp;{item.category}&nbsp;•&nbsp;{item.source}
                 </p>
-              )}
-            </div>
-          </div>
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mb-2 block text-base font-semibold text-foreground hover:text-accent"
+                >
+                  {item.headline}
+                </a>
+                {summaries?.[item.rank] ? (
+                  <p className="text-sm leading-relaxed text-foreground/90">{summaries[item.rank]}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {process.env.GEMINI_API_KEY
+                      ? "Failed to generate summary."
+                      : "Add GEMINI_API_KEY to enable AI analysis."}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ol>
         )}
       </div>
     </main>
