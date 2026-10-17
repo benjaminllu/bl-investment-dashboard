@@ -1,6 +1,10 @@
 import { fetchKoreaLeverage } from "@/lib/koreaLeverage";
 import KoreaLeveragePanel from "@/components/KoreaLeveragePanel";
 import { PlaceholderGrid } from "@/components/PlaceholderBlocks";
+import PositioningPanel from "@/components/PositioningPanel";
+import { fetchCot } from "@/lib/cot";
+import { fetchGammaExposure } from "@/lib/gammaExposure";
+import { fetchAllocationSupply } from "@/lib/allocationSupply";
 import WipBadge from "@/components/WipBadge";
 
 /**
@@ -19,32 +23,51 @@ import WipBadge from "@/components/WipBadge";
 export const revalidate = 3600;
 
 export default async function PositioningPage() {
-  const koreaLeverage = await fetchKoreaLeverage();
+  const [koreaLeverage, cot, gamma, allocation] = await Promise.all([
+    fetchKoreaLeverage(),
+    fetchCot(),
+    fetchGammaExposure(),
+    fetchAllocationSupply(),
+  ]);
 
   return (
     <main className="min-h-full">
       <div className="mx-auto max-w-screen-3xl space-y-4 p-4">
         <div className="flex items-center gap-2">
           <h1 className="text-sm font-semibold text-foreground">Positioning</h1>
-          <WipBadge title="Only the Korean leverage panel is built — the blocks below it are still empty placeholders." />
+          <WipBadge title="Options positioning and prime brokerage are still empty placeholders." />
         </div>
 
-        {/* Thirds. The leverage panel takes one, the unbuilt blocks take the
-            next as a single column of four equal rows, and the last is left
-            open for whatever gets built next. Both columns are grid items in
-            the same row, so the placeholder column inherits the panel's height
-            and its four rows divide that height rather than a guessed one. */}
+        {/* Thirds, fast to slow. The first row is the weekly-to-daily reads:
+            Korean leverage, futures positioning, dealer gamma. The second holds
+            the quarterly Fed series and the two blocks not built yet, stacked so
+            they share one column's height rather than claiming a row each. */}
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <KoreaLeveragePanel data={koreaLeverage} />
 
+          <PositioningPanel
+            title="COT · E-mini S&P 500"
+            source="CFTC TFF · futures only"
+            data={cot}
+          />
+
+          <PositioningPanel
+            title="Gamma Exposure"
+            source="SqueezeMetrics"
+            data={gamma}
+            footnote="GEX ranked against the last three years, since it is a dollar amount that grows with the market. DIX against its full history."
+          />
+
+          <PositioningPanel
+            title="Allocation & Supply"
+            source="Fed Z.1 via FRED · quarterly"
+            data={allocation}
+            footnote="Published about ten weeks after each quarter ends."
+          />
+
           <PlaceholderGrid
             stacked
-            blocks={[
-              { label: "COT" },
-              { label: "Prime Brokerage" },
-              { label: "Gamma Exposure" },
-              { label: "Options Positioning" },
-            ]}
+            blocks={[{ label: "Options Positioning" }, { label: "Prime Brokerage" }]}
           />
         </div>
       </div>
