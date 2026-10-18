@@ -21,15 +21,29 @@ interface Row {
   sell_issuers: number;
 }
 
+// Cached for an hour, like the portfolio page's price history: the table
+// changes once a day and the page around it rebuilds every five minutes. A
+// failed or not-yet-backfilled read throws instead of returning, because
+// unstable_cache never caches a throw; returning it would pin "unavailable"
+// for the whole hour.
 const loadRows = unstable_cache(
-  () => fetchAllRows<Row>("insider_breadth", "filing_date, buy_issuers, sell_issuers", "filing_date"),
+  async () => {
+    const rows = await fetchAllRows<Row>("insider_breadth", "filing_date, buy_issuers, sell_issuers", "filing_date");
+    if (!rows || rows.length < SPARK_DAYS) throw new Error(`insider_breadth: ${rows?.length ?? "no"} rows`);
+    return rows;
+  },
   ["insider-breadth"],
   { revalidate: 3600 },
 );
 
 export async function fetchInsiderBreadth(): Promise<PositioningSource> {
-  const rows = await loadRows();
-  if (!rows || rows.length < SPARK_DAYS) return UNAVAILABLE;
+  let rows: Row[];
+  try {
+    rows = await loadRows();
+  } catch (e) {
+    console.error("[insider-breadth]", e);
+    return UNAVAILABLE;
+  }
 
   const sums = rows.slice(WINDOW - 1).map((r, i) => {
     const window = rows.slice(i, i + WINDOW);

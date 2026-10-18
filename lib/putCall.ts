@@ -33,17 +33,29 @@ function rolling(rows: Row[], call: (r: Row) => number | null, put: (r: Row) => 
   });
 }
 
-// An hour, like the portfolio page's price history: the table changes once a
-// day, and the page around it rebuilds every five minutes.
+// Cached for an hour, like the portfolio page's price history: the table
+// changes once a day and the page around it rebuilds every five minutes. A
+// failed or not-yet-backfilled read throws instead of returning, because
+// unstable_cache never caches a throw; returning it would pin "unavailable"
+// for the whole hour.
 const loadRows = unstable_cache(
-  () => fetchAllRows<Row>("cboe_put_call", "trade_date, equity_call, equity_put, spx_call, spx_put", "trade_date"),
+  async () => {
+    const rows = await fetchAllRows<Row>("cboe_put_call", "trade_date, equity_call, equity_put, spx_call, spx_put", "trade_date");
+    if (!rows || rows.length < SPARK_DAYS) throw new Error(`cboe_put_call: ${rows?.length ?? "no"} rows`);
+    return rows;
+  },
   ["cboe-put-call"],
   { revalidate: 3600 },
 );
 
 export async function fetchPutCall(): Promise<PositioningSource> {
-  const rows = await loadRows();
-  if (!rows || rows.length < SPARK_DAYS) return UNAVAILABLE;
+  let rows: Row[];
+  try {
+    rows = await loadRows();
+  } catch (e) {
+    console.error("[cboe-put-call]", e);
+    return UNAVAILABLE;
+  }
 
   const equity = rolling(rows, (r) => r.equity_call, (r) => r.equity_put);
   const spx = rolling(rows, (r) => r.spx_call, (r) => r.spx_put);
