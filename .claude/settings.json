@@ -44,7 +44,10 @@
       "PowerShell(npm run *)",
       "PowerShell(npx tsc *)",
       "PowerShell(npx eslint *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "ClaudeInChromeDomain(localhost:3123)",
+      "ClaudeInChromeDomain(localhost:3000)"
     ],
     "defaultMode": "auto"
   },
