@@ -1,0 +1,42 @@
+name: Positioning Data
+
+# Nightly top-up of the two Positioning tables (scripts/positioning-tables.sql).
+# Both scripts read their own bookmark from the table and fill whatever days are
+# missing, so a run GitHub drops is caught up by the next one. The one-off
+# history load is `--backfill`, run by hand once; see each script's header.
+#
+# 12:00 UTC is after Cboe's prior-day file is up and an hour after the watchlist
+# insider screen, so the two SEC jobs never share the 10 requests/second budget.
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cboe put/call
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/update-put-call.js
+
+      # Runs even if Cboe failed: the two sources are independent.
+      - name: Insider breadth
+        if: ${{ !cancelled() }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+        run: node scripts/update-insider-breadth.js

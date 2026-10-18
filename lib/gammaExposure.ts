@@ -1,5 +1,5 @@
 import { trimFloats } from "./precision";
-import { rankLatest, UNAVAILABLE, type PositioningSource } from "./positioning";
+import { formatDay, rankLatest, UNAVAILABLE, type PositioningSource } from "./positioning";
 
 /**
  * SPX gamma exposure (GEX) and the dark index (DIX), from SqueezeMetrics.
@@ -40,14 +40,6 @@ function parse(csv: string): Row[] {
     }
   }
   return rows;
-}
-
-function formatDay(iso: string): string {
-  return new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export async function fetchGammaExposure(): Promise<PositioningSource> {

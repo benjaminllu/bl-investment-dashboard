@@ -35,6 +35,21 @@ export interface PositioningSource {
 
 export const UNAVAILABLE: PositioningSource = { asOf: null, readings: [], unavailable: true };
 
+/** "2026-10-16" → "16 Oct 2026". Noon UTC so the date cannot slip a day in any zone. */
+export function formatDay(iso: string): string {
+  return new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Always-signed, with a typographic minus to match the rest of the app. */
+export function signed(n: number, digits = 1): string {
+  return `${n < 0 ? "−" : "+"}${Math.abs(n).toFixed(digits)}`;
+}
+
 /** Percentile of the last value against the whole series, and the year it starts. */
 export function rankLatest(
   series: { date: string; value: number }[],

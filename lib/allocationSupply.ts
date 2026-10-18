@@ -1,5 +1,6 @@
 import { trimFloats } from "./precision";
-import { rankLatest, UNAVAILABLE, type PositioningSource } from "./positioning";
+import { fetchFredSeries as fetchSeries, type Obs } from "./fredSeries";
+import { rankLatest, signed, UNAVAILABLE, type PositioningSource } from "./positioning";
 
 /**
  * The slow side of positioning, from the Fed's Financial Accounts (Z.1) via
@@ -13,30 +14,9 @@ const HOUSEHOLD_EQUITY = "BOGZ1FL153064486Q"; // percent of financial assets, NS
 const NET_ISSUANCE = "NCBCEBQ027S"; // nonfinancial corporate equities, transactions, $m SAAR
 const MARKET_VALUE = "NCBEILQ027S"; // nonfinancial corporate equities, level, $m
 
-interface Obs {
-  date: string;
-  value: number;
-}
-
-async function fetchSeries(id: string, apiKey: string): Promise<Obs[]> {
-  const url =
-    `https://api.stlouisfed.org/fred/series/observations` +
-    `?series_id=${id}&api_key=${apiKey}&file_type=json&sort_order=asc`;
-  const res = await fetch(url, { next: { revalidate: 3600 } });
-  if (!res.ok) throw new Error(`${id}: HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.observations ?? [])
-    .map((o: { date: string; value: string }) => ({ date: o.date, value: parseFloat(o.value) }))
-    .filter((o: Obs) => Number.isFinite(o.value));
-}
-
 /** FRED dates a quarter by its first day; "2026-04-01" is Q2 2026. */
-function quarterLabel(iso: string): string {
+export function quarterLabel(iso: string): string {
   return `Q${Math.floor(Number(iso.slice(5, 7)) / 3) + 1} ${iso.slice(0, 4)}`;
-}
-
-function signed(n: number, digits = 2): string {
-  return `${n < 0 ? "−" : "+"}${Math.abs(n).toFixed(digits)}`;
 }
 
 export async function fetchAllocationSupply(): Promise<PositioningSource> {
@@ -88,8 +68,8 @@ export async function fetchAllocationSupply(): Promise<PositioningSource> {
       {
         id: "issuance",
         label: "Net equity issuance",
-        value: `${signed(sLast.value)}%`,
-        detail: `of market value per year, trailing 4Q · latest quarter ${signed(qLast.value)}%`,
+        value: `${signed(sLast.value, 2)}%`,
+        detail: `of market value per year, trailing 4Q · latest quarter ${signed(qLast.value, 2)}%`,
         ...rankLatest(smoothed),
         history: smoothed.slice(-120).map((o) => o.value),
         read: "Nonfinancial companies' new stock minus buybacks and cash takeovers. Negative means supply is shrinking; issuance waves have tended to come late in a cycle.",

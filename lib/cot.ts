@@ -1,5 +1,5 @@
 import { trimFloats } from "./precision";
-import { rankLatest, UNAVAILABLE, type PositioningSource } from "./positioning";
+import { formatDay, rankLatest, signed, UNAVAILABLE, type PositioningSource } from "./positioning";
 
 /**
  * E-mini S&P 500 positioning from the CFTC's Traders in Financial Futures
@@ -50,18 +50,6 @@ const GROUPS = [
     read: "Banks' books, mostly the other side of the two groups above.",
   },
 ] as const;
-
-function formatDay(iso: string): string {
-  return new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function signed(n: number, digits = 1): string {
-  return `${n < 0 ? "−" : "+"}${Math.abs(n).toFixed(digits)}`;
-}
 
 export async function fetchCot(): Promise<PositioningSource> {
   let raw: Raw[];
