@@ -95,14 +95,15 @@ export default function HomeBoard({
     // Row one is never shorter than the digest's actual content: four majors
     // and six minors, compacted, come to ~21rem, and a summary you have to
     // scroll is not a summary. From 1720px the two rows split the screen
-    // evenly; narrower than that, row one stays at 21rem because the right rail
-    // has to fit earnings and the feed below it. Earnings is 22rem because its table needs
+    // evenly; narrower than that, row one sizes to its content (the twelve
+    // movers are the tallest part) because the right rail has to fit earnings
+    // and the feed below it. Earnings is 22rem because its table needs
     // that to seat six columns without scrolling sideways.
     //
     // Below xl the side columns would leave the table a sliver, so the regions
     // stack and the shell scrolls. The min-height floor keeps the last row from
     // hitting 0 on a short laptop screen.
-    <div className="flex flex-col gap-px bg-border xl:grid xl:h-full xl:min-h-[56rem] xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[21rem_19rem_minmax(0,1fr)] board:min-h-[48rem] board:grid-cols-[minmax(0,1fr)_22rem_20rem] board:grid-rows-[minmax(21rem,1fr)_minmax(0,1fr)]">
+    <div className="flex flex-col gap-px bg-border xl:grid xl:h-full xl:min-h-[56rem] xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[auto_19rem_minmax(0,1fr)] board:min-h-[48rem] board:grid-cols-[minmax(0,1fr)_22rem_20rem] board:grid-rows-[minmax(21rem,1fr)_minmax(0,1fr)]">
       <div className="col-span-full col-start-1 row-start-1 flex min-h-0 flex-col gap-px bg-border xl:grid xl:grid-cols-[minmax(0,1fr)_13rem]">
         <MarketDigestPanel
           digest={digest}

@@ -24,7 +24,7 @@ export interface Mover {
   changePct: number;
 }
 
-const COUNT = 3;
+const COUNT = 6;
 
 /**
  * Ranks the watchlist by 1D change.
@@ -36,7 +36,7 @@ const COUNT = 3;
  * short list.
  *
  * Deduped by ticker because a name can sit on more than one list, and the same
- * symbol appearing twice in a three-row column reads as a data error.
+ * symbol appearing twice in a six-row column reads as a data error.
  */
 export function rankMovers(stocks: MoverStock[]): { gainers: Mover[]; losers: Mover[] } {
   const seen = new Set<string>();
