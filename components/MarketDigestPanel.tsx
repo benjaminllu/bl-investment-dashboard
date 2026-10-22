@@ -40,12 +40,15 @@ const MAJOR_PLACEMENT = [
   "xl:col-start-1 xl:row-start-4",
   "xl:col-start-4 xl:row-start-4",
 ];
+// The left-hand minors carry a real border on top of the 1px gap: it marks the
+// major/minor split more firmly than the cell hairlines, and unlike a grid gap a
+// border never rounds away to nothing at fractional zoom levels.
 const MINOR_PLACEMENT = [
-  "xl:col-start-7 xl:row-start-1",
+  "xl:col-start-7 xl:row-start-1 xl:border-l xl:border-border",
   "xl:col-start-9 xl:row-start-1",
-  "xl:col-start-7 xl:row-start-3",
+  "xl:col-start-7 xl:row-start-3 xl:border-l xl:border-border",
   "xl:col-start-9 xl:row-start-3",
-  "xl:col-start-7 xl:row-start-5",
+  "xl:col-start-7 xl:row-start-5 xl:border-l xl:border-border",
   "xl:col-start-9 xl:row-start-5",
 ];
 
