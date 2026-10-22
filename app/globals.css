@@ -27,6 +27,9 @@
  */
 @theme {
   --breakpoint-3xl: 120rem;
+  /* The home board's three-column layout; see HomeBoard. A token rather than
+     min-[1720px] because arbitrary min-* variants sort before xl and lose. */
+  --breakpoint-board: 107.5rem;
 }
 
 @theme inline {
