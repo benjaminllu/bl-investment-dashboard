@@ -24,8 +24,8 @@ import type { NewsItem } from "@/lib/finnhubNews";
  * the height the watchlist now gets to use. On a 1080p screen the table went
  * from roughly five visible rows to roughly twelve.
  *
- * Below the digest from 1720px, three full-height columns: earnings, the
- * watchlist, and the research feed, so the feed reads as a column rather than
+ * Below the digest from 1720px, three full-height columns: the watchlist,
+ * earnings, and the research feed, so the feed reads as a column rather than
  * a letterbox. The watchlist pays for its neighbours in width, not height: its
  * ten columns have fixed widths totalling ~816px, and Company (the one
  * unsized column) collapses to nothing below the `board` breakpoint (1720px).
@@ -92,16 +92,17 @@ export default function HomeBoard({
   };
 
   return (
-    // Row one is sized to the digest's actual content rather than to a share
-    // of the screen: four majors and six minors, compacted, come to ~21rem, and
-    // a summary you have to scroll is not a summary. Below it every column
-    // takes the remaining height. Earnings is 22rem because its table needs
+    // Row one is never shorter than the digest's actual content: four majors
+    // and six minors, compacted, come to ~21rem, and a summary you have to
+    // scroll is not a summary. From 1720px the two rows split the screen
+    // evenly; narrower than that, row one stays at 21rem because the right rail
+    // has to fit earnings and the feed below it. Earnings is 22rem because its table needs
     // that to seat six columns without scrolling sideways.
     //
     // Below xl the side columns would leave the table a sliver, so the regions
     // stack and the shell scrolls. The min-height floor keeps the last row from
     // hitting 0 on a short laptop screen.
-    <div className="flex flex-col gap-px bg-border xl:grid xl:h-full xl:min-h-[56rem] xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[21rem_19rem_minmax(0,1fr)] board:min-h-[48rem] board:grid-cols-[22rem_minmax(0,1fr)_20rem] board:grid-rows-[21rem_minmax(0,1fr)]">
+    <div className="flex flex-col gap-px bg-border xl:grid xl:h-full xl:min-h-[56rem] xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[21rem_19rem_minmax(0,1fr)] board:min-h-[48rem] board:grid-cols-[minmax(0,1fr)_22rem_20rem] board:grid-rows-[minmax(21rem,1fr)_minmax(0,1fr)]">
       <div className="col-span-full col-start-1 row-start-1 flex min-h-0 flex-col gap-px bg-border xl:grid xl:grid-cols-[minmax(0,1fr)_13rem]">
         <MarketDigestPanel
           digest={digest}
@@ -121,7 +122,7 @@ export default function HomeBoard({
         selected={selected}
         onSelect={setSelected}
         unavailable={earningsUnavailable}
-        className="col-start-2 row-start-2 flex h-[19rem] min-h-0 flex-col bg-background p-2 xl:h-auto board:col-start-1"
+        className="col-start-2 row-start-2 flex h-[19rem] min-h-0 flex-col bg-background p-2 xl:h-auto"
       />
 
       <ResearchFeed
@@ -131,7 +132,7 @@ export default function HomeBoard({
         className="order-last col-start-2 row-start-3 flex h-[32rem] min-h-0 flex-col overflow-hidden bg-background xl:order-none xl:h-auto board:col-start-3 board:row-start-2"
       />
 
-      <section className="col-start-1 row-span-2 row-start-2 flex h-[36rem] min-h-0 flex-col bg-background xl:h-auto board:col-start-2 board:row-span-1">
+      <section className="col-start-1 row-span-2 row-start-2 flex h-[36rem] min-h-0 flex-col bg-background xl:h-auto board:row-span-1">
         {/* Scrolls rather than wrapping, so nineteen categories never break to a
             second line and cost the table a row. */}
         <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border px-2 [&::-webkit-scrollbar]:hidden">
