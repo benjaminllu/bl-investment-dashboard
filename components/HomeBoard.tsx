@@ -7,10 +7,7 @@ import MoversPanel from "@/components/MoversPanel";
 import EarningsPanel, { type EarningsRow } from "@/components/EarningsPanel";
 import ResearchFeed from "@/components/ResearchFeed";
 import StockTable, { type Stock } from "@/components/StockTable";
-import TickerChart from "@/components/TickerChart";
-import { Panel } from "@/components/shell/parts";
 
-import { CHART_PRESETS } from "@/lib/chartPresets";
 import { LIST_ORDER } from "@/data/watchlistOrder";
 import type { MarketDigest } from "@/lib/marketDigest";
 import type { SubstackArticle } from "@/lib/substack";
@@ -27,10 +24,11 @@ import type { NewsItem } from "@/lib/finnhubNews";
  * the height the watchlist now gets to use. On a 1080p screen the table went
  * from roughly five visible rows to roughly twelve.
  *
- * The research rail spans the chart and table rows so the feed reads as a
- * column rather than a letterbox. The watchlist pays for that in width, not
- * height: its ten columns have fixed widths totalling ~816px, so Company still
- * absorbs the slack rather than the table truncating.
+ * The right rail (earnings over research) runs the full height below the
+ * digest so the feed reads as a column rather than a letterbox. The watchlist
+ * pays for that in width, not height: its ten columns have fixed widths
+ * totalling ~816px, so Company still absorbs the slack rather than the table
+ * truncating.
  */
 interface Props {
   stocks: Stock[];
@@ -74,9 +72,7 @@ export default function HomeBoard({
 
   const [activeList, setActiveList] = useState("All");
   const [selected, setSelected] = useState<string | null>(stocks[0]?.ticker ?? null);
-  const [presetIndex, setPresetIndex] = useState(0);
 
-  const preset = CHART_PRESETS[presetIndex];
   const visibleStocks = activeList === "All" ? stocks : stocks.filter((s) => s.list === activeList);
 
   // Flattened across every ticker rather than filtered to the visible list:
@@ -97,14 +93,16 @@ export default function HomeBoard({
   return (
     // Row one is sized to the digest's actual content rather than to a share
     // of the screen: four majors and six minors, compacted, come to ~21rem, and
-    // a summary you have to scroll is not a summary. Row two holds the chart.
-    // The watchlist takes what is left — it is the one panel that reads fine at
-    // any height, because a table simply shows fewer rows.
+    // a summary you have to scroll is not a summary. Below it the watchlist
+    // takes the full height of the left column — it is the one panel that reads
+    // fine at any height, because a table simply shows fewer rows. The right
+    // rail stacks earnings over the research feed; it is 22rem because the
+    // earnings table needs that to seat six columns without scrolling sideways.
     //
-    // Below xl the 20rem rail would leave the chart and table a sliver, so the
-    // regions stack and the shell scrolls. At xl the min-height floor keeps
-    // 16rem for the table on a short laptop screen instead of letting 1fr hit 0.
-    <div className="flex flex-col gap-px bg-border xl:grid xl:h-full xl:min-h-[56rem] xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-[21rem_19rem_minmax(0,1fr)]">
+    // Below xl the rail would leave the table a sliver, so the regions stack
+    // and the shell scrolls. At xl the min-height floor keeps 16rem for the
+    // research feed on a short laptop screen instead of letting 1fr hit 0.
+    <div className="flex flex-col gap-px bg-border xl:grid xl:h-full xl:min-h-[56rem] xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[21rem_19rem_minmax(0,1fr)]">
       <div className="col-span-2 col-start-1 row-start-1 flex min-h-0 flex-col gap-px bg-border xl:grid xl:grid-cols-[minmax(0,1fr)_13rem]">
         <MarketDigestPanel
           digest={digest}
@@ -118,60 +116,23 @@ export default function HomeBoard({
         />
       </div>
 
-      {/* The earnings table needs 22rem to seat six columns without scrolling
-          sideways. The chart gives it up: a chart is elastic, a table of fixed
-          columns is not. */}
-      <div className="col-start-1 row-start-2 flex min-h-0 flex-col gap-px bg-border xl:grid xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <Panel
-          className="flex h-[19rem] min-h-0 min-w-0 flex-col bg-background xl:h-auto"
-          label={selected ?? "Chart"}
-          meta={
-            <span className="flex items-center gap-1">
-              <button
-                type="button"
-                aria-label="Previous chart preset"
-                onClick={() =>
-                  setPresetIndex((i) => (i - 1 + CHART_PRESETS.length) % CHART_PRESETS.length)
-                }
-                className="px-1 transition-colors hover:text-foreground"
-              >
-                &lsaquo;
-              </button>
-              {preset.label}
-              <button
-                type="button"
-                aria-label="Next chart preset"
-                onClick={() => setPresetIndex((i) => (i + 1) % CHART_PRESETS.length)}
-                className="px-1 transition-colors hover:text-foreground"
-              >
-                &rsaquo;
-              </button>
-            </span>
-          }
-        >
-          {selected && (
-            <TickerChart symbol={selected} studies={preset.studies} className="h-full w-full" />
-          )}
-        </Panel>
-
-        <EarningsPanel
-          rows={allEarnings}
-          currencyByTicker={currencyByTicker}
-          selected={selected}
-          onSelect={setSelected}
-          unavailable={earningsUnavailable}
-          className="flex h-[19rem] min-h-0 flex-col bg-background p-2 xl:h-auto"
-        />
-      </div>
+      <EarningsPanel
+        rows={allEarnings}
+        currencyByTicker={currencyByTicker}
+        selected={selected}
+        onSelect={setSelected}
+        unavailable={earningsUnavailable}
+        className="col-start-2 row-start-2 flex h-[19rem] min-h-0 flex-col bg-background p-2 xl:h-auto"
+      />
 
       <ResearchFeed
         articles={articles}
         watchlistNews={watchlistNews}
         marketNews={marketNews}
-        className="order-last col-start-2 row-span-2 row-start-2 flex h-[32rem] min-h-0 flex-col overflow-hidden bg-background xl:order-none xl:h-auto"
+        className="order-last col-start-2 row-start-3 flex h-[32rem] min-h-0 flex-col overflow-hidden bg-background xl:order-none xl:h-auto"
       />
 
-      <section className="col-start-1 row-start-3 flex h-[36rem] min-h-0 flex-col bg-background xl:h-auto">
+      <section className="col-start-1 row-span-2 row-start-2 flex h-[36rem] min-h-0 flex-col bg-background xl:h-auto">
         {/* Scrolls rather than wrapping, so nineteen categories never break to a
             second line and cost the table a row. */}
         <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border px-2 [&::-webkit-scrollbar]:hidden">
