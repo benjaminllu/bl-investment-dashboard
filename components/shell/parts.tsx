@@ -180,7 +180,10 @@ export function Tape({
       <span className="shrink-0 border-r border-border pr-3 font-serif text-sm italic">
         Ben&rsquo;s Investment Research
       </span>
-      <span className="shrink-0 origin-left scale-90">
+      {/* Sized by its own text rather than scale-90: a transform shrinks the
+          drawing but not the layout box, which left ~45px of dead space that
+          pushed Copper under the WIP badge at 1920px. */}
+      <span className="shrink-0">
         <MarketClock />
       </span>
       <div className="flex items-center gap-4 overflow-hidden">

@@ -71,7 +71,7 @@ export default function MarketClock() {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-base font-bold text-foreground">
+      <span className="text-sm font-bold text-foreground">
         {date} &nbsp;•&nbsp; {time}
       </span>
       <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
