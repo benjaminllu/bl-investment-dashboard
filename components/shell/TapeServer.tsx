@@ -1,4 +1,4 @@
-import { fetchIndexRows, fetchSpFutures } from "@/lib/indexQuotes";
+import { fetchIndexRows } from "@/lib/indexQuotes";
 import { fetchTreasuryYields } from "@/lib/fred";
 import { Tape } from "./parts";
 
@@ -7,16 +7,12 @@ import { Tape } from "./parts";
  * finished node instead of the data.
  *
  * Its own async component, wrapped in Suspense by the root layout: awaiting
- * these three there would block every route's first byte on them. This is the
- * same arrangement the old MarketBanner had, and the same three cached fetches
- * it made (revalidate 300).
+ * these there would block every route's first byte on them. This is the same
+ * arrangement the old MarketBanner had (revalidate 300). The ES futures line
+ * was dropped on 2026-10-23 as near-duplicate of SPY.
  */
 export default async function TapeServer() {
-  const [indices, futures, yields] = await Promise.all([
-    fetchIndexRows(),
-    fetchSpFutures(),
-    fetchTreasuryYields(),
-  ]);
+  const [indices, yields] = await Promise.all([fetchIndexRows(), fetchTreasuryYields()]);
 
-  return <Tape indices={indices} futures={futures} yields={yields} />;
+  return <Tape indices={indices} yields={yields} />;
 }

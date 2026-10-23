@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import MarketClock from "@/components/MarketClock";
-import type { IndexQuote, IndexRow } from "@/lib/indexQuotes";
+import type { IndexRow } from "@/lib/indexQuotes";
 import type { TreasuryYields } from "@/lib/fred";
 
 /**
@@ -168,11 +168,9 @@ function TapeItem({
 /** The banner's two stacked lines, collapsed into one 32px strip. */
 export function Tape({
   indices,
-  futures,
   yields,
 }: {
   indices: IndexRow[];
-  futures: IndexQuote;
   yields: TreasuryYields;
 }) {
   return (
@@ -190,9 +188,6 @@ export function Tape({
         {indices.map((idx) => (
           <TapeItem key={idx.ticker} label={idx.label} price={idx.price} changePct={idx.changePct} />
         ))}
-        {futures.price !== null && (
-          <TapeItem label="ES" price={futures.price} changePct={futures.changePct} />
-        )}
         <span className="flex shrink-0 items-baseline gap-1.5">
           <span className="text-muted-foreground">10Y</span>
           <span className="font-semibold tabular-nums">

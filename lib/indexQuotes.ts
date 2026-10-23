@@ -48,41 +48,6 @@ export async function fetchIndexQuote(ticker: string): Promise<IndexQuote> {
   }
 }
 
-// Finnhub has no futures asset class at all — /futures/* endpoints don't exist
-// (unlike /forex/* and /crypto/*), symbol search returns nothing for "E-mini",
-// and /quote answers c:0 for every ES format. Their free S&P futures tick dataset
-// is a static 2000-2019 Kaggle dump, not an API. So the front-month E-mini comes
-// from Yahoo's chart endpoint instead.
-//
-// That endpoint is unofficial and unsupported, so every failure path returns
-// nulls: callers already gate the futures line on a non-null price, meaning a
-// breakage degrades to simply omitting it rather than erroring.
-export async function fetchSpFutures(): Promise<IndexQuote> {
-  try {
-    const res = await fetch(
-      "https://query1.finance.yahoo.com/v8/finance/chart/ES=F?range=1d&interval=1d",
-      {
-        next: { revalidate: 300 },
-        // Yahoo rejects requests without a browser-like agent.
-        headers: { "User-Agent": "Mozilla/5.0" },
-      }
-    );
-    if (!res.ok) return { price: null, changePct: null };
-    const data = await res.json();
-    const meta = data?.chart?.result?.[0]?.meta;
-
-    const price = typeof meta?.regularMarketPrice === "number" ? meta.regularMarketPrice : null;
-    const prevClose =
-      typeof meta?.chartPreviousClose === "number" ? meta.chartPreviousClose : null;
-    if (price === null || prevClose === null || prevClose === 0) {
-      return { price, changePct: null };
-    }
-    return { price, changePct: ((price - prevClose) / prevClose) * 100 };
-  } catch {
-    return { price: null, changePct: null };
-  }
-}
-
 /** Every index, settled. A failed leg becomes nulls rather than rejecting. */
 export async function fetchIndexRows(): Promise<IndexRow[]> {
   const results = await Promise.allSettled(INDICES.map((idx) => fetchIndexQuote(idx.ticker)));
