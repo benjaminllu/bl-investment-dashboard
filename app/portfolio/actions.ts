@@ -13,6 +13,7 @@ import {
 } from "@/lib/portfolioLock";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import {
+  CASH_TICKER,
   addCash,
   parsePortfolioCsv,
   resolveSlot,
@@ -32,6 +33,8 @@ export type ImportState = {
     replacing: boolean;
     positions: { ticker: string; company: string | null; quantity: number; avgCost: number | null }[];
     skipped: { symbol: string; reason: string }[];
+    /** Set when the import would remove the slot's cash balance. */
+    cashWarning: string | null;
   } | null;
   /** Set only once a write has landed. */
   done: string | null;
@@ -126,6 +129,16 @@ export async function importPortfolio(_prev: ImportState, formData: FormData): P
   if (target.error) return fail(target.error);
   const slot = target.slot as number;
 
+  // The slot keeps no history, so a cash row dropped by a blank Cash field is
+  // simply gone; this is how slot 3 lost its settlement balance on 2026-10-23.
+  const { data: heldCash } = await supabaseAdmin
+    .from("portfolio_positions")
+    .select("quantity")
+    .eq("slot", slot)
+    .eq("ticker", CASH_TICKER)
+    .maybeSingle();
+  const keepsCash = parsed.positions.some((p: { ticker: string }) => p.ticker === CASH_TICKER);
+
   const preview: ImportState["preview"] = {
     broker: parsed.broker,
     account: parsed.account,
@@ -138,6 +151,10 @@ export async function importPortfolio(_prev: ImportState, formData: FormData): P
       avgCost: p.avg_cost,
     })),
     skipped: parsed.skipped,
+    cashWarning:
+      heldCash && !keepsCash
+        ? `This file has no cash, so importing removes the slot's $${Number(heldCash.quantity).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} cash balance. Enter it under Cash balance to keep it.`
+        : null,
   };
 
   if (formData.get("intent") !== "import") return { error: null, preview, done: null };

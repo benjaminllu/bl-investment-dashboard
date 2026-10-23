@@ -115,6 +115,11 @@ export default function PortfolioImport({ slots }: { slots: { slot: number; labe
                   </tbody>
                 </table>
               </div>
+              {preview.cashWarning && (
+                <p role="alert" className="text-warning">
+                  {preview.cashWarning}
+                </p>
+              )}
               {preview.skipped.map((s) => (
                 <p key={s.symbol} className="text-muted-foreground">
                   Skipped {s.symbol}: {s.reason}

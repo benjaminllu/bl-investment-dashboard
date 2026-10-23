@@ -418,7 +418,8 @@ export default function PortfolioPanel({
                 <p className="mt-1 text-xs text-muted-foreground">
                   Positions since sold are absent, so the return figures inherit hindsight and
                   read better than what was actually earned. Volatility, beta, R² and capture
-                  describe the book you hold now and are unaffected.{" "}
+                  describe the book you hold now and are unaffected. Cash is left out, so
+                  every figure describes the securities alone. Prices include dividends.{" "}
                   {trackRecordDays === 0
                     ? "No real snapshots recorded yet."
                     : `Real track record so far: ${trackRecordDays} day${trackRecordDays === 1 ? "" : "s"} recorded.`}

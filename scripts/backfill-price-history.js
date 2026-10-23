@@ -5,8 +5,13 @@
 // Yahoo's chart endpoint is free, already used in this project for S&P futures,
 // and covers the OTC foreign listings Finnhub has no profile for.
 //
-// Safe to re-run: every write is an upsert on (ticker, date), so a second run
-// refreshes recent bars and leaves settled history untouched.
+// Runs daily from refresh-fundamentals.yml. Every write is an upsert on
+// (ticker, date), so a re-run converges on the same rows.
+//
+// `close` stores Yahoo's dividend-adjusted close, so returns are total returns.
+// Adjusted history is rescaled every time a dividend is paid, which is why each
+// run refetches the whole range rather than only the newest bars: stitching new
+// adjusted bars onto old ones would put a fake jump at the seam.
 const { createClient } = require("@supabase/supabase-js");
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -29,7 +34,9 @@ const supabase = createClient(
 
 /** Everything is measured against this, so it is fetched like any holding. */
 const BENCHMARK = "SPY";
-const RANGE = "5y";
+// The page reads 400 calendar days; two years covers that with room to spare,
+// at under half the daily write volume of the original five-year backfill.
+const RANGE = "2y";
 
 // Yahoo is an undocumented endpoint with no published rate limit. 300ms between
 // symbols is unhurried enough not to look like abuse for a ~35 symbol run.
@@ -74,9 +81,13 @@ async function fetchHistory(ticker) {
 
   const stamps = result.timestamp ?? [];
   const quote = result.indicators?.quote?.[0] ?? {};
+  const adjusted = result.indicators?.adjclose?.[0]?.adjclose;
+  // Without the adjusted series a ticker's dividends would silently drop out of
+  // its returns, so it is skipped rather than stored on the raw close.
+  if (!Array.isArray(adjusted)) throw new Error("no adjusted close in response");
   const rows = [];
   for (let i = 0; i < stamps.length; i++) {
-    const close = quote.close?.[i];
+    const close = adjusted[i];
     // A null close is a genuine gap (halt, holiday misalignment). Skipping it
     // is right: carrying the previous close forward would invent a 0% return
     // day and deflate every volatility figure computed downstream.
@@ -187,6 +198,10 @@ async function main() {
     console.log(`${failures.length} problem(s):`);
     for (const f of failures) console.log(`  ${f}`);
   }
+  // A single delisted ticker should not fail the daily run, but losing the
+  // benchmark or every symbol should, or the workflow stays green while the
+  // risk windows quietly freeze again.
+  if (ok === 0 || failures.some((f) => f.startsWith(`${BENCHMARK}:`))) process.exitCode = 1;
 }
 
 main();
