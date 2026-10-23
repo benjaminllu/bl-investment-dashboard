@@ -176,7 +176,7 @@ export function Tape({
   yields: TreasuryYields;
 }) {
   return (
-    <div className="flex h-8 shrink-0 items-center gap-4 overflow-hidden px-2 text-xs">
+    <div className="flex h-8 shrink-0 items-center gap-3 overflow-hidden px-2 text-xs">
       <span className="shrink-0 border-r border-border pr-3 font-serif text-sm italic">
         Ben&rsquo;s Investment Research
       </span>
@@ -186,7 +186,7 @@ export function Tape({
       <span className="shrink-0">
         <MarketClock />
       </span>
-      <div className="flex items-center gap-4 overflow-hidden">
+      <div className="flex items-center gap-3 overflow-hidden">
         {indices.map((idx) => (
           <TapeItem key={idx.ticker} label={idx.label} price={idx.price} changePct={idx.changePct} />
         ))}

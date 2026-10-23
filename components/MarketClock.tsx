@@ -44,7 +44,7 @@ export default function MarketClock() {
 
   if (!now) return (
     <span className="invisible text-sm text-muted-foreground">
-      Wednesday, January 01, 2026 &nbsp;•&nbsp; 00:00:00 AM EST
+      Wed, Jan 01 &nbsp;•&nbsp; 00:00:00 AM EST
     </span>
   );
 
@@ -52,9 +52,8 @@ export default function MarketClock() {
 // The timeZone is set to New York time since that's where the stock market is based.
 
   const date = now.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
+    weekday: "short",
+    month: "short",
     day: "numeric",
     timeZone: "America/New_York",
   });

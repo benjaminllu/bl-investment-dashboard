@@ -9,10 +9,10 @@
  */
 
 export const INDICES = [
-  { label: "S&P 500", ticker: "SPY" },
-  { label: "NASDAQ", ticker: "QQQ" },
+  { label: "SPY", ticker: "SPY" },
+  { label: "QQQ", ticker: "QQQ" },
   { label: "DOW", ticker: "DIA" },
-  { label: "Russell 2000", ticker: "IWM" },
+  { label: "Russell 2K", ticker: "IWM" },
   { label: "Gold", ticker: "GLD" },
   { label: "Oil", ticker: "USO" },
   { label: "Copper", ticker: "CPER" },

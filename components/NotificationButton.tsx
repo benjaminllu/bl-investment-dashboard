@@ -1,7 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import WipBadge from "./WipBadge";
+
+const WIP_TITLE =
+  "Work in progress: push notifications only send a test message — there is no alerting logic behind them yet.";
+
+/**
+ * The WIP marker inside the button rather than a separate badge beside it, so
+ * the tape keeps the width. Inherits the button's colour; the separate amber
+ * badge (WipBadge) cost ~50px the tape needed at 1920px.
+ */
+function WipMark() {
+  return (
+    <span className="ml-1.5 rounded-sm border border-current px-1 text-xs uppercase leading-none tracking-wide opacity-70">
+      <span className="sr-only">Work in progress: </span>
+      WIP
+    </span>
+  );
+}
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -100,34 +116,35 @@ export default function NotificationButton() {
 
   return (
     <div className="flex items-center gap-2">
-      {/* One badge on the group rather than one per button: Enable and Send Test
-          are never visible at the same time, and the whole push feature is what
-          is unfinished, not either button individually. */}
-      <WipBadge title="Push notifications only send a test message — there is no alerting logic behind them yet." />
       {subscribed ? (
         <>
           <button
             onClick={sendTest}
             disabled={sending}
+            title={WIP_TITLE}
             className="rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
-            {sending ? "Sending…" : "Send Test"}
+            {sending ? "Sending…" : "Test"}
+            <WipMark />
           </button>
           <button
             onClick={disable}
             disabled={loading}
+            title="Turn off push alerts on this device"
             className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
-            Disable Notifications
+            Disable
           </button>
         </>
       ) : (
         <button
           onClick={enable}
           disabled={loading}
+          title={WIP_TITLE}
           className="rounded bg-accent px-2 py-1 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {loading ? "Enabling…" : "Enable Notifications"}
+          {loading ? "Enabling…" : "Enable Alerts"}
+          <WipMark />
         </button>
       )}
       {notice && <span className="text-xs text-muted-foreground">{notice}</span>}
