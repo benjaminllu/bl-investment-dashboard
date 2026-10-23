@@ -77,18 +77,18 @@ out; it cannot expose positions.
 
 ## Portfolio data entry
 
-The Portfolio tab is loaded by CSV import through the Supabase dashboard, into
-the `portfolio_positions` table. This was chosen over an in-app upload form
-specifically to preserve the read-only posture described above: a browser upload
-writing with the anon key would have been an unauthenticated write endpoint for
-anyone who found the URL. A server-side upload with the service-role key would
-have been safe from that particular problem but would still have needed its own
-auth gate.
+Positions reach `portfolio_positions` two ways, both through the parser in
+`scripts/lib/portfolioImport.js`: the local CLI (`scripts/import-portfolio-csv.js`)
+and the upload form on `/portfolio`.
 
-That gate now exists (`isPortfolioUnlocked()`), so an in-app upload form has
-become defensible where it previously was not. It still has not been built —
-importing through the Supabase dashboard adds no new write path to the app at
-all, and that remains the smaller surface.
+The upload is the app's one browser-reachable write to the position tables. It
+is a server action, `importPortfolio` in `app/portfolio/actions.ts`, and it
+checks `isPortfolioUnlocked()` itself before reading the file. That check is the
+boundary, not the page's lock screen, because an action can be called without
+the page. It writes with the service-role key on the server; the browser never
+holds a write credential. Input is bounded: a 512 KB file cap below Next's 1 MB
+action limit, slot 1–5, and a numeric cash field. The worst a holder of the
+unlock cookie can do is replace a slot's positions, which a re-import restores.
 
 ## IBKR Portfolio integration (tabled)
 

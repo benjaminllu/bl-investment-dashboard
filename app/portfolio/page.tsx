@@ -13,6 +13,7 @@ import PortfolioSection, {
   type PortfolioPosition,
 } from "@/components/PortfolioSection";
 import PortfolioPanel from "@/components/PortfolioPanel";
+import PortfolioImport from "@/components/PortfolioImport";
 import {
   computeAnalytics,
   type AnalyticsPosition,
@@ -388,6 +389,9 @@ export default async function PortfolioPage() {
           </div>
         ) : (
           <div className="space-y-3">
+            <PortfolioImport
+              slots={SLOTS.map((slot) => ({ slot, label: labelBySlot.get(slot)?.label ?? `Portfolio ${slot}` }))}
+            />
             {allPositions.length > 0 && (
               <div className="flex flex-wrap gap-4">
                 <div className="border border-border bg-card px-4 py-2">

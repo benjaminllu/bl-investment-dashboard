@@ -53,9 +53,18 @@ Full reasoning, threat model and limitations: [`SECURITY.md`](SECURITY.md).
 
 ## Importing
 
-Export positions from your broker, then run the import script. The first time an
-account is loaded you have to say which slot it belongs in; after that the script
-recognises it and reuses the same slot.
+Export positions from your broker, then load the file one of two ways. Both run
+the same parser and slot rules (`scripts/lib/portfolioImport.js`).
+
+**From the page.** Unlock `/portfolio`, open **Import positions CSV**, choose
+the file, and press **Preview**. The preview lists every position, the rows
+skipped, and which slot it would fill or replace; nothing is written until you
+press **Replace slot N** / **Import into slot N**. Leave Slot on *Match account*
+for a repeat import. A re-import of the account already in a slot keeps the
+slot's name. There is no `--force` equivalent; use the script for that.
+
+**From the script.** The first time an account is loaded you have to say which
+slot it belongs in; after that the script recognises it and reuses the same slot.
 
 ```
 # first time — choose a slot
@@ -65,16 +74,19 @@ node scripts/import-portfolio-csv.js "Roth Contributory IRA-Positions.csv" --slo
 node scripts/import-portfolio-csv.js "Roth Contributory IRA-Positions.csv"
 ```
 
-**The script replaces the slot's contents rather than appending**, so there is
+**An import replaces the slot's contents rather than appending**, so there is
 nothing to clear first: positions you have since sold disappear, and nothing is
-double-counted. It also renames the slot to the account name it finds in the
+double-counted. New rows are written before sold ones are removed, so a failed
+write leaves the previous holdings in place rather than an empty slot. A ticker
+listed on more than one row (Schwab does this) is merged into one position. It also renames the slot to the account name it finds in the
 file, so `portfolios.label` looks after itself.
 
 | Flag | |
 |---|---|
 | `--slot=N` | Which portfolio slot (1–5) to load into. Optional once the account has been imported before |
 | `--label="..."` | Rename the slot. Defaults to the account name read from the file's preamble |
-| `--broker=NAME` | Override format detection (currently only `schwab`) |
+| `--broker=NAME` | Override format detection (`schwab` or `vanguard`) |
+| `--cash=N` | Add a cash balance; Vanguard's cost-basis file omits the money market |
 | `--dry-run` | Parse and print what *would* be written, touching nothing |
 | `--force` | Allow an account into a slot when it is already loaded in a different one |
 
@@ -171,27 +183,28 @@ migration and a few lines — say so.
 
 | Vanguard column | → | Notes |
 |---|---|---|
-| `Symbol` | `ticker` | Class shares normalised: `BRK B` → `BRK.B` |
-| `Investment Name` | `company` | |
-| `Shares` | `quantity` | Fractional shares preserved (`187.255`) |
-| `Average Cost Per Share` | `avg_cost` | Used directly when present |
-| `Total Cost` / `Cost Basis` | `avg_cost` | Fallback — divided by shares |
-| `Total Value` | `quantity` | Money-market row only, where it is the balance |
-| `Account Number` | `account` | Stored as `Vanguard <number>` |
+| `Symbol/CUSIP` | `ticker` | Class shares normalised: `BRK B` → `BRK.B` |
+| `Description` / `Investment name` | `company` | |
+| `Quantity` / `Shares` | `quantity` | Summed across the symbol's lots |
+| `Total cost` / `Cost basis` | `avg_cost` | Summed across lots, then divided by total shares |
+| `Cost per share` | `avg_cost` | Fallback for a lot with no total, multiplied back out by its shares |
+| `Market value as of …` | seeded price | Only for tickers with no quote yet (see below) |
+| `Account` / `Account number` | `account` | Stored as `Vanguard <number>` |
 
-**Export the cost-basis view, not the plain holdings view.** Vanguard's default
-positions download has only Shares, Share Price and Total Value — no cost. Rows
-import fine without it, but `avg_cost` is null, so Avg Cost, P&L and P&L % are
-em-dashes for the whole slot, and the page's Combined P&L then covers only the
-portfolios that do have costs while the totals include this one. Use the
-unrealised gain/loss or cost-basis download instead.
+**Export the cost-basis download, not the plain holdings view.** The file is
+recognised by its `Symbol/CUSIP` and `Cost basis method` columns; a holdings
+download has neither and is rejected as an unknown format. The cost-basis file
+is one row per tax lot, so a symbol bought fifteen times appears fifteen times;
+lots are merged before writing. It leaves out the settlement money market, so
+enter that balance as cash (the page's **Cash balance** field, or `--cash=N`).
 
 Three Vanguard-specific behaviours, all verified on a real export:
 
 - **`BRK B` → `BRK.B`.** Left alone this is worse than a wrong ticker: the space
   makes `refresh-data.js` classify it as an option symbol and skip it, so the
   position would silently never be priced.
-- **Money-market funds become cash.** `VMFXX` at a fixed $1 NAV is a settlement
+- **Money-market funds are not holdings.** A money-market row is skipped, and its
+  balance belongs in the cash field. `VMFXX` at a fixed $1 NAV is a settlement
   sweep, not an exposure. Matched on the fund *name* containing "money market",
   so it survives `VMFXX` → `VMRXX`. Carrying it as a holding would imply market
   risk that does not exist *and* drop the balance out of Value, since no free
@@ -277,11 +290,11 @@ update portfolios set label = 'Schwab Brokerage', broker = 'schwab' where slot =
   skipping and seeded prices for unquotable funds.
 - ✅ Password gate on `/portfolio` plus RLS on the position tables, so positions
   reach neither the page nor the anon key without the unlock cookie.
-- ⏳ **Vanguard cost basis is untested.** The export used to build the parser had
-  no cost column, so the `Average Cost Per Share` and `Total Cost` mappings are
-  written from Vanguard's documented header names but have not been exercised
-  against a real file. Worth a `--dry-run` on the first cost-basis export to
-  confirm the numbers land where they should.
+- ✅ Vanguard cost basis, verified against a real 96-lot cost-basis export:
+  aggregated lots reproduce Vanguard's own total gain/loss to the cent (commit
+  `9dc1866`).
+- ✅ In-app upload with preview, behind the same unlock as the page.
+  `node scripts/verifyPortfolioImport.js` checks the parser rules.
 - ⏳ Untested shapes: ETFs, fractional shares, options, short positions, and
   exports containing several accounts. Handled in principle, but no real file
   has exercised them.
