@@ -3,13 +3,16 @@ import { fetchFedDotPlot } from "@/lib/fedDotPlot";
 import { fetchMacroKeyDates } from "@/lib/keyDates";
 import MacroMetrics from "@/components/MacroMetrics";
 import MacroKeyBand from "@/components/MacroKeyBand";
+import PredictionMarketsPanel from "@/components/PredictionMarketsPanel";
+import { fetchPredictionMarkets } from "@/lib/polymarket";
 
 export default async function MacroPage() {
   const hasApiKey = !!process.env.FRED_API_KEY;
-  const [metrics, dotPlot, keyDates] = await Promise.all([
+  const [metrics, dotPlot, keyDates, predictions] = await Promise.all([
     fetchFredMetrics(),
     fetchFedDotPlot(),
     fetchMacroKeyDates(),
+    fetchPredictionMarkets(),
   ]);
 
   return (
@@ -40,6 +43,9 @@ export default async function MacroPage() {
             <MacroMetrics metrics={metrics} />
           </>
         )}
+
+        {/* Outside the FRED gate: Polymarket needs no key. */}
+        <PredictionMarketsPanel data={predictions} />
       </div>
     </main>
   );
