@@ -13,7 +13,9 @@ This is a personal project — no SLA is expected from any of the unauthenticate
 | [Supabase](#supabase) | Database | Anon key (client), service role (scripts) | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Plan-dependent | Live queries, no app-level cache |
 | [Finnhub](#finnhub) | Quotes, news | API key (query param) | `FINNHUB_API_KEY` | 60 req/min (free tier) | 300s (index quotes), 900s (market news) |
 | [FRED](#fred-federal-reserve-economic-data) | Macro series, 2Y/10Y Treasury yields, business-cycle overlay | API key (query param) | `FRED_API_KEY` | ~120 req/min (commonly cited; not confirmed against FRED's own docs — see note) | 3600s |
-| [Yahoo Finance](#yahoo-finance-unofficial) | S&P 500 futures (ES), daily price history, sector returns and rotation metrics | None (requires User-Agent) | — | Unofficial, unpublished | 300s (banner); 3600s (sectors); batch script for history |
+| [Yahoo Finance](#yahoo-finance-unofficial) | Last official S&P 500 close (`^GSPC`), daily price history, sector returns and rotation metrics | None (requires User-Agent) | — | Unofficial, unpublished | 300s (banner); 3600s (sectors); batch script for history |
+| [Hyperliquid](#hyperliquid) | 24/7 S&P 500 perp for the tape; funding, premium, open interest for Positioning | None | — | 1200 weight/min per IP | 300s (markets); 3600s (funding history) |
+| [Polymarket](#polymarket) | Fed, recession and CPI odds (Macro) | None | — | Unpublished | 900s |
 | [CNN Fear & Greed](#cnn-fear--greed-index-unofficial) | Sentiment index | None (requires User-Agent) | — | Unofficial, unpublished | 1800s |
 | [Cboe](#cboe-vix--vixeq) | VIX / VIXEQ | None (requires User-Agent) | — | Unpublished | 3600s |
 | [CFTC](#cftc-commitments-of-traders) | E-mini S&P futures positioning (COT) | None | — | Unpublished (Socrata) | 3600s |
@@ -125,6 +127,26 @@ Coverage checked against the real book before building on it: **34/34 symbols re
 This is a batch script, not a page render: one request per held symbol at 300ms spacing (61 symbols on 2026-10-23), run daily as the second step of `refresh-fundamentals.yml`. It also refreshes `risk_free_rates` from FRED, which needs the `FRED_API_KEY` Actions secret. It is not on the 60/min Finnhub budget and does not touch it.
 
 **Stability caveat:** this is an undocumented endpoint with no terms guaranteeing availability; it can change shape or start rate-limiting by IP without notice. Every failure path (`!res.ok`, malformed JSON, missing fields, thrown error) returns `{ price: null, changePct: null }`, and the banner only renders the futures line when `price !== null` — so a breakage silently drops the line rather than erroring the page. Load is one request per page render behind `revalidate: 300`, not a per-ticker loop.
+
+### Hyperliquid
+*(Added 2026-10-27.)* `lib/hyperliquid.ts` POSTs to `https://api.hyperliquid.xyz/info`, no key. Two request types:
+
+- `{"type":"metaAndAssetCtxs","dex":"xyz"}`: every market on trade.xyz's builder-deployed "xyz" exchange with mark, oracle, funding, premium, open interest and 24h volume. Used for `xyz:SP500` and `xyz:XYZ100`. Weight 20, `revalidate: 300`.
+- `{"type":"fundingHistory","coin":...,"startTime":...}`: hourly funding rate and premium, at most 500 rows per response, so it is paged forward from a start rounded to UTC midnight (the request body is the cache key; an unrounded start would refetch every page on every render). Weight 20 plus per-row extra, `revalidate: 3600`.
+
+Limit: 1200 weight per minute per IP across all REST requests ([official docs](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits)). Next caches these POSTs because each sets an explicit `revalidate`; checked in `next/dist/server/lib/patch-fetch.js`, where the uncacheable-method check is on the incoming request, not the outgoing fetch.
+
+**Tape:** `withFresherSp` in `lib/indexQuotes.ts` replaces the SPY item with the perp, labelled `S&P·HL` in amber, whenever Finnhub's SPY quote time is over 20 minutes old. The change shown is against the last official S&P 500 close from Yahoo `^GSPC`.
+
+**Caveats:** these are perps, not the index. Outside US hours trade.xyz sets its own reference price, and in July 2026 that misbehaved on its SK Hynix market ([Galaxy Research](https://www.galaxy.com/insights/research/hyperliquid-tradexyz-oracle-liquidations)). S&P open interest was ~$415M on 2026-10-27, small next to CME.
+
+### Polymarket
+*(Added 2026-10-27.)* `lib/polymarket.ts`, no key, `revalidate: 900`:
+
+- Gamma `GET /public-search?q=...&events_status=active` finds the events by title pattern (`Fed Decision in <Month>?`, `US recession by end of <year>?`, `Core CPI YoY - <Month> <year>`), because every meeting or release is a new event with a new slug. A market's first `outcomePrices` value is the Yes probability.
+- CLOB `GET /prices-history?market=<token>&interval=1w&fidelity=360` gives the price a week ago for the weekly change.
+
+About 25 requests per refresh. No published rate limit found. Markets under $50k traded are flagged thin in the panel rather than hidden.
 
 ### FRED (Federal Reserve Economic Data)
 St. Louis Fed's API, `lib/fred.ts`, 20 macro series (`FRED_SERIES`) covering rates, inflation, credit spreads, Fed balance sheet, and similar, plus `lib/fedDotPlot.ts` for the FOMC's dot-plot series and `lib/keyDates.ts` for upcoming release dates. Key via `api_key=` query param (`FRED_API_KEY`) — **this env var is used in code but missing from `README.md`'s documented `.env.local` list** (see [Known documentation gaps](#known-documentation-gaps-found-while-writing-this)). Five entry points across two different FRED endpoints: `fetchFredMetrics()` and `fetchFredHistory()` hit `/fred/series/observations` (actual data values; the latter proxied through `app/api/fred/observations/route.ts` so the client-side chart never sees the API key); `fetchFedDotPlot()` also hits `/fred/series/observations` but for the dot-plot series specifically (see below); `fetchTreasuryYields()` hits `/fred/series/observations` for DGS2/DGS10 to feed the sticky header's 2Y/10Y readings (deliberately *not* added to `FRED_SERIES`, which drives the /macro metric grid — adding them there would silently add two rows to that page; it over-fetches `limit=5` and filters FRED's `.` holiday sentinel so the daily bps change survives a market holiday); `fetchMacroKeyDates()` hits the separate `/fred/release/dates` endpoint, which returns *scheduled release dates* for a given release (CPI = release 10, Employment Situation = release 50, SEP = release 326) rather than data values — confirmed live to return real future dates, not just historical ones.

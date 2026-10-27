@@ -11,6 +11,7 @@ import { fetchShortInterest } from "@/lib/shortInterest";
 import { fetchInsiderBreadth } from "@/lib/insiderBreadth";
 import { fetchMarginDebt } from "@/lib/marginDebt";
 import { fetchFundFlows } from "@/lib/fundFlows";
+import { fetchHyperliquidPositioning } from "@/lib/hyperliquid";
 import WipBadge from "@/components/WipBadge";
 
 /**
@@ -29,7 +30,7 @@ import WipBadge from "@/components/WipBadge";
 export const revalidate = 3600;
 
 export default async function PositioningPage() {
-  const [koreaLeverage, cot, gamma, allocation, putCall, volTerm, shortInterest, insider, margin, fundFlows] =
+  const [koreaLeverage, cot, gamma, allocation, putCall, volTerm, shortInterest, insider, margin, fundFlows, perps] =
     await Promise.all([
     fetchKoreaLeverage(),
     fetchCot(),
@@ -41,6 +42,7 @@ export default async function PositioningPage() {
     fetchInsiderBreadth(),
     fetchMarginDebt(),
     fetchFundFlows(),
+    fetchHyperliquidPositioning(),
   ]);
 
   return (
@@ -48,7 +50,7 @@ export default async function PositioningPage() {
       <div className="mx-auto max-w-screen-3xl space-y-4 p-4">
         <div className="flex items-center gap-2">
           <h1 className="text-sm font-semibold text-foreground">Positioning</h1>
-          <WipBadge title="Ten panels are built; the blocks naming a planned source are still placeholders." />
+          <WipBadge title="Eleven panels are built; the blocks naming a planned source are still placeholders." />
         </div>
 
         {/* Thirds, read fast to slow: daily-to-weekly flows and hedging on the
@@ -59,6 +61,13 @@ export default async function PositioningPage() {
           <KoreaLeveragePanel data={koreaLeverage} />
 
           <PositioningPanel title="COT · E-mini S&P 500" source="CFTC TFF · futures only" data={cot} />
+
+          <PositioningPanel
+            title="24/7 Index Perps"
+            source="Hyperliquid · trade.xyz"
+            data={perps}
+            footnote="Perpetual contracts that track the index and trade around the clock. Outside US hours trade.xyz sets its own reference price, and the market is small next to CME, so read these as one crypto-native crowd's view. Funding and premium are ranked against daily averages since each contract listed."
+          />
 
           <PositioningPanel
             title="Gamma Exposure"

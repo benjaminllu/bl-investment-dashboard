@@ -143,10 +143,12 @@ function TapeItem({
   label,
   price,
   changePct,
+  title,
 }: {
   label: string;
   price: number | null;
   changePct: number | null;
+  title?: string;
 }) {
   const tone =
     changePct === null
@@ -155,8 +157,10 @@ function TapeItem({
         ? "text-accent"
         : "text-destructive";
   return (
-    <span className="flex shrink-0 items-baseline gap-1.5">
-      <span className="text-muted-foreground">{label}</span>
+    <span className="flex shrink-0 items-baseline gap-1.5" title={title}>
+      {/* A stand-in row (the Hyperliquid perp for SPY) is labelled in amber,
+          DESIGN.md's "notable" colour, so it never reads as the ETF. */}
+      <span className={title ? "text-warning" : "text-muted-foreground"}>{label}</span>
       <span className="font-semibold tabular-nums">{price === null ? "—" : price.toFixed(2)}</span>
       <span className={`tabular-nums ${tone}`}>
         {changePct === null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`}
@@ -186,7 +190,7 @@ export function Tape({
       </span>
       <div className="flex items-center gap-3 overflow-hidden">
         {indices.map((idx) => (
-          <TapeItem key={idx.ticker} label={idx.label} price={idx.price} changePct={idx.changePct} />
+          <TapeItem key={idx.ticker} label={idx.label} price={idx.price} changePct={idx.changePct} title={idx.title} />
         ))}
         <span className="flex shrink-0 items-baseline gap-1.5">
           <span className="text-muted-foreground">10Y</span>
