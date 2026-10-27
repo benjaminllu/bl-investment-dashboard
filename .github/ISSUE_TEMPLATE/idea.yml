@@ -1,0 +1,19 @@
+name: Idea
+description: A feature, data source or change I want to build.
+labels: [feature]
+body:
+  - type: markdown
+    attributes:
+      value: This repo is public. Describe the idea, not balances or positions.
+  - type: textarea
+    id: what
+    attributes:
+      label: What I want
+      placeholder: "Show the Hyperliquid S&P 500 price when the market is closed"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      placeholder: "The ETF prices freeze overnight and at weekends"

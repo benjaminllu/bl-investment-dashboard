@@ -1,0 +1,23 @@
+name: Bug
+description: Something on the dashboard is wrong or broken.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: This repo is public. Describe the problem, not balances or positions.
+  - type: textarea
+    id: saw
+    attributes:
+      label: What I saw
+      placeholder: "Copper's daily change is cut off by the WIP tag"
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      placeholder: "Home banner, 1920px, 100% zoom"
+  - type: textarea
+    id: expected
+    attributes:
+      label: What I expected
