@@ -9,10 +9,32 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch:
 
+# actions:read lets the wait step see the quote job's runs. Declaring any
+# permission drops the defaults, so contents:read is restated for checkout.
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
+      # The quote job skips itself while this one runs (see refresh-data.yml),
+      # but one already mid-run when this starts would still overlap, so wait
+      # it out. A quote run takes ~5-7 min; capped at 20 min so a stuck run
+      # delays the daily refresh rather than blocking it.
+      - name: Wait for any running quote refresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 40); do
+            running=$(gh run list -R "$GITHUB_REPOSITORY" --workflow refresh-data.yml --status in_progress --json databaseId -q length)
+            [ "$running" -eq 0 ] && exit 0
+            echo "Quote refresh in progress; waiting 30s ($i/40)."
+            sleep 30
+          done
+          echo "Still running after 20 min; proceeding anyway."
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4

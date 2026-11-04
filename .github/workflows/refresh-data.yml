@@ -8,8 +8,39 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
+# actions:read lets the gate see the fundamentals job's runs. Declaring any
+# permission drops the defaults, so contents:read is restated for checkout.
+permissions:
+  contents: read
+  actions: read
+
 jobs:
+  # Both jobs share one 60/min Finnhub key and each runs at ~54/min, so running
+  # them together gets requests refused. The fundamentals cron fires hours late
+  # and unpredictably (06:00 scheduled, observed 12:00-15:00 UTC), so no fixed
+  # time can avoid it: check whether it is actually running and skip if so.
+  # The fundamentals job waits on this one in turn; one side yielding and the
+  # other waiting means they cannot both hold back forever.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          running=$(gh run list -R "$GITHUB_REPOSITORY" --workflow refresh-fundamentals.yml --status in_progress --json databaseId -q length)
+          if [ "$running" -gt 0 ]; then
+            echo "Fundamentals job is running; skipping this quote refresh."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   refresh:
+    needs: gate
+    if: needs.gate.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
