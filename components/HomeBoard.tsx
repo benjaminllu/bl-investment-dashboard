@@ -6,7 +6,15 @@ import MarketDigestPanel from "@/components/MarketDigestPanel";
 import MoversPanel from "@/components/MoversPanel";
 import EarningsPanel, { type EarningsRow } from "@/components/EarningsPanel";
 import ResearchFeed from "@/components/ResearchFeed";
-import StockTable, { type Stock } from "@/components/StockTable";
+import StockTable, { type Stock, uniqueByTicker } from "@/components/StockTable";
+import { ChevronIcon, useScrollAffordance } from "@/components/ScrollAffordance";
+import {
+  AddTickerForm,
+  AddTickerToggle,
+  RemoveTickerDialog,
+  rowsToRemove,
+  useCanEditWatchlist,
+} from "@/components/WatchlistEditing";
 
 import { LIST_ORDER } from "@/data/watchlistOrder";
 import type { MarketDigest } from "@/lib/marketDigest";
@@ -74,7 +82,16 @@ export default function HomeBoard({
   const [activeList, setActiveList] = useState("All");
   const [selected, setSelected] = useState<string | null>(stocks[0]?.ticker ?? null);
 
-  const visibleStocks = activeList === "All" ? stocks : stocks.filter((s) => s.list === activeList);
+  const { ref: tabsRef, canLeft, canRight, scrollByPage } = useScrollAffordance(lists.length);
+  const scrollable = canLeft || canRight;
+
+  const canEdit = useCanEditWatchlist();
+  const [adding, setAdding] = useState(false);
+  const [removing, setRemoving] = useState<Stock[] | null>(null);
+
+  const uniqueStocks = useMemo(() => uniqueByTicker(stocks), [stocks]);
+  const visibleStocks =
+    activeList === "All" ? uniqueStocks : stocks.filter((s) => s.list === activeList);
 
   // Flattened across every ticker rather than filtered to the visible list:
   // switching category should not hide an imminent report, which is the one
@@ -111,7 +128,7 @@ export default function HomeBoard({
           className="flex min-h-0 flex-col overflow-hidden bg-background"
         />
         <MoversPanel
-          stocks={stocks}
+          stocks={uniqueStocks}
           compact
           className="flex min-h-0 flex-col overflow-hidden bg-background"
         />
@@ -136,30 +153,77 @@ export default function HomeBoard({
       <section className="col-start-1 row-span-2 row-start-2 flex h-[36rem] min-h-0 flex-col bg-background xl:h-auto board:row-span-1">
         {/* Scrolls rather than wrapping, so nineteen categories never break to a
             second line and cost the table a row. */}
-        <div className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border px-2 [&::-webkit-scrollbar]:hidden">
-          {lists.map((list) => (
+        {/* Arrows sit outside the scroller so they never cover a category, and
+            render only when the tabs overflow; each dims at its own end. Same
+            treatment as the /research tab bar. */}
+        <div className="flex shrink-0 items-center border-b border-border pr-1.5">
+          {scrollable && (
             <button
-              key={list}
               type="button"
-              onClick={() => handleListChange(list)}
-              className={`flex h-7 shrink-0 items-center px-2 text-xs font-medium transition-colors ${
-                activeList === list
-                  ? "border-b-2 border-accent text-accent"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              onClick={() => scrollByPage(-1)}
+              disabled={!canLeft}
+              aria-label="Scroll categories left"
+              className="flex h-7 shrink-0 items-center px-1 text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
             >
-              {list}
+              <ChevronIcon direction="left" />
             </button>
-          ))}
+          )}
+          <div
+            ref={tabsRef}
+            className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden"
+          >
+            {lists.map((list) => (
+              <button
+                key={list}
+                type="button"
+                onClick={() => handleListChange(list)}
+                className={`flex h-7 shrink-0 items-center px-2 text-xs font-medium transition-colors ${
+                  activeList === list
+                    ? "border-b-2 border-accent text-accent"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {list}
+              </button>
+            ))}
+          </div>
+          {scrollable && (
+            <button
+              type="button"
+              onClick={() => scrollByPage(1)}
+              disabled={!canRight}
+              aria-label="Scroll categories right"
+              className="flex h-7 shrink-0 items-center px-1 text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+            >
+              <ChevronIcon direction="right" />
+            </button>
+          )}
+          {/* Outside the scroller so it stays put while the tabs scroll. */}
+          {canEdit && (
+            <AddTickerToggle
+              open={adding}
+              onToggle={() => setAdding((a) => !a)}
+              className="ml-1.5 h-5 text-xs"
+            />
+          )}
         </div>
+        {canEdit && adding && (
+          <AddTickerForm
+            lists={lists.slice(1)}
+            defaultList={activeList === "All" ? "" : activeList}
+            onClose={() => setAdding(false)}
+          />
+        )}
         <div className="min-h-0 flex-1">
           <StockTable
             stocks={visibleStocks}
             selected={selected}
             onSelect={setSelected}
+            onRemove={canEdit ? (s) => setRemoving(rowsToRemove(s, stocks, activeList)) : undefined}
             className="h-full overflow-auto"
           />
         </div>
+        {canEdit && <RemoveTickerDialog rows={removing} onClose={() => setRemoving(null)} />}
       </section>
     </div>
   );

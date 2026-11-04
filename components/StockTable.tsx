@@ -23,6 +23,16 @@ export type Stock = {
   insider?: InsiderSummary | null;
 };
 
+/**
+ * One row per ticker. `stocks` holds a row per (ticker, list), so a ticker in
+ * two lists would otherwise appear twice in "All" and in the movers. The first
+ * row wins, which is the oldest given the created_at ordering.
+ */
+export function uniqueByTicker(stocks: Stock[]): Stock[] {
+  const seen = new Set<string>();
+  return stocks.filter((s) => !seen.has(s.ticker) && seen.add(s.ticker));
+}
+
 function timeAgo(iso: string | null): string {
   if (!iso) return "—";
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -317,6 +327,8 @@ type StockTableProps = {
    * has always had.
    */
   onOpenTicker?: (ticker: string) => void;
+  /** When given, each row gets a remove button. Passed only for an unlocked browser. */
+  onRemove?: (stock: Stock) => void;
 };
 
 export default function StockTable({
@@ -325,6 +337,7 @@ export default function StockTable({
   onSelect,
   className = "max-h-[60vh] overflow-auto border border-border bg-card",
   onOpenTicker,
+  onRemove,
 }: StockTableProps) {
   // null = unsorted, i.e. the curated order the rows arrive in. This state
   // deliberately survives watchlist tab changes: the component keeps the same
@@ -381,6 +394,11 @@ export default function StockTable({
             <SortHeader label="Earnings" sortKey="nextEarnings" sort={sort} onSort={handleSort} className="w-28 px-2 py-1.5" />
             <SortHeader label="Insider" sortKey="insider" sort={sort} onSort={handleSort} className="w-24 px-2 py-1.5" />
             <SortHeader label="Updated" sortKey="updatedAt" sort={sort} onSort={handleSort} className="w-28 px-2 py-1.5" />
+            {onRemove && (
+              <th className="w-8">
+                <span className="sr-only">Remove</span>
+              </th>
+            )}
           </tr>
         </thead>
 
@@ -389,7 +407,7 @@ export default function StockTable({
             const isSelected = stock.ticker === selected;
             return (
             <tr
-              key={stock.ticker}
+              key={stock.id}
               onClick={() => handleRowClick(stock.ticker)}
               aria-current={isSelected ? "true" : undefined}
               // Hover is applied only when unselected: both are same-specificity
@@ -434,6 +452,23 @@ export default function StockTable({
                 <InsiderCell summary={stock.insider} />
               </td>
               <td className="px-2 py-1.5 text-muted-foreground">{timeAgo(stock.updatedAt)}</td>
+              {onRemove && (
+                <td className="text-center">
+                  {/* stopPropagation: removing a row should not also select it. */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemove(stock);
+                    }}
+                    aria-label={`Remove ${stock.ticker}`}
+                    title={`Remove ${stock.ticker}`}
+                    className="px-1 text-muted-foreground/60 transition-colors hover:text-destructive focus-visible:text-destructive"
+                  >
+                    ×
+                  </button>
+                </td>
+              )}
             </tr>
             );
           })}

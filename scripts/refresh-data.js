@@ -19,11 +19,10 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
-
-// Paywall/clickbait rules live in scripts/newsFilter.js so this job and
-// generate-market-digest.js apply exactly the same ones.
-const { isLowQuality } = require("./newsFilter");
+// Fetch + write logic is shared with the in-app "add ticker" action. The news
+// fetch applies the paywall/clickbait rules from scripts/newsFilter.js, so this
+// job and generate-market-digest.js still apply exactly the same ones.
+const { fetchQuote, fetchNews, newsWindow, writeQuote, replaceNews } = require("./lib/finnhub");
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -57,7 +56,8 @@ async function main() {
   // happening to be tracked, so a holding you did not also watch either showed
   // no price at all or — worse, if it had once been on the watchlist — kept
   // being priced from a stale row that nothing ever refreshed again.
-  const watchlist = stocks.map((s) => s.ticker);
+  // De-duplicated: a ticker can sit in more than one list, one row per list.
+  const watchlist = [...new Set(stocks.map((s) => s.ticker))];
   const watchlistSet = new Set(watchlist);
   const heldOnly = [
     ...new Set((held ?? []).map((h) => h.ticker).filter((t) => !watchlistSet.has(t))),
@@ -73,11 +73,7 @@ async function main() {
     ...heldOnly.map((ticker) => ({ ticker, withNews: false })),
   ];
 
-  const today = new Date();
-  const from = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
-  const to = today.toISOString().split("T")[0];
+  const newsDates = newsWindow();
 
   console.log(
     `Refreshing ${targets.length} tickers ` +
@@ -87,15 +83,9 @@ async function main() {
   for (const { ticker, withNews } of targets) {
     // --- Quote ---
     try {
-      const res = await fetch(
-        `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB_KEY}`
-      );
-      const data = await res.json();
-      if (data.c) {
-        const { error: qErr } = await supabase.from("stock_quotes").upsert(
-          { ticker, price: data.c, change_pct: data.dp, updated_at: new Date().toISOString() },
-          { onConflict: "ticker" }
-        );
+      const quote = await fetchQuote(ticker);
+      if (quote) {
+        const qErr = await writeQuote(supabase, ticker, quote);
         if (qErr) console.error(`  quote write error: ${qErr.message}`);
       }
     } catch (e) {
@@ -111,27 +101,9 @@ async function main() {
 
     // --- News ---
     try {
-      const res = await fetch(
-        `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${FINNHUB_KEY}`
-      );
-      const articles = await res.json();
-      const filtered = articles.filter((a) => !isLowQuality(a)).slice(0, 3);
-
-      await supabase.from("stock_news").delete().eq("ticker", ticker);
-
-      if (filtered.length > 0) {
-        const { error: nErr } = await supabase.from("stock_news").insert(
-          filtered.map((a) => ({
-            ticker,
-            headline: a.headline,
-            url: a.url,
-            source: a.source,
-            image: a.image || null,
-            datetime: a.datetime,
-          }))
-        );
-        if (nErr) console.error(`  news write error: ${nErr.message}`);
-      }
+      const articles = await fetchNews(ticker, newsDates);
+      const nErr = await replaceNews(supabase, ticker, articles);
+      if (nErr) console.error(`  news write error: ${nErr.message}`);
     } catch (e) {
       console.error(`  news fetch error for ${ticker}:`, e.message);
     }
