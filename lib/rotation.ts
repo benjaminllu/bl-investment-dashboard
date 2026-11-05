@@ -521,7 +521,7 @@ export interface Efficacy {
   horizons: string[];
   quadrants: EfficacyRow[];
   momentum: EfficacyRow[];
-  /** First and last dates of the test window, so the sample is stated rather than implied. */
+  /** First and last signal weeks scored, so the sample is stated rather than implied. */
   from: string;
   to: string;
   observations: number;
@@ -924,8 +924,9 @@ export function computeRotation(universe: Universe): RotationData {
  * the aligned sector grid), and overlapping windows across eleven correlated
  * sectors mean the observation counts are far larger than the number of
  * independent observations behind them — after a year of warm-up and six
- * months held back for the forward returns, a 26-week horizon has only about
- * a dozen non-overlapping periods. No significance test
+ * months held back for the forward returns, a 26-week horizon has only
+ * observations / 26 non-overlapping periods (fourteen as of November 2026; the
+ * panel prints the live figure). No significance test
  * is reported because none of them would survive one. It is here to keep the
  * rest of the page honest, not to justify a trade.
  */
@@ -990,6 +991,7 @@ function computeEfficacy(
   const maxHorizon = Math.max(...EFFICACY_HORIZONS.map((h) => h.weeks));
   let observations = 0;
   let firstIndex: number | null = null;
+  let lastIndex = 0;
 
   for (let i = 0; i < n - maxHorizon; i++) {
     const zx = crossSectionalZ(Object.fromEntries(SECTOR_TICKERS.map((t) => [t, rel[t][i]])));
@@ -997,6 +999,7 @@ function computeEfficacy(
     const scores = scoreAt(i);
     if (!zx || !zy || !scores) continue;
     if (firstIndex === null) firstIndex = i;
+    lastIndex = i;
     observations++;
 
     const ordered = Object.entries(scores).sort((a, b) => b[1] - a[1]);
@@ -1055,7 +1058,9 @@ function computeEfficacy(
       toRow("Bottom 3 by score", momAcc.bottom),
     ],
     from: weeklyDates[firstIndex],
-    to: dates[dates.length - 1],
+    // The last week a signal was scored, not the last bar: every signal needs
+    // the longest horizon of forward returns after it, so the two differ by it.
+    to: weeklyDates[lastIndex],
     observations,
   };
 }

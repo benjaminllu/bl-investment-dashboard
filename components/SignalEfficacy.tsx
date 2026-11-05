@@ -131,8 +131,9 @@ export default function SignalEfficacy({ efficacy }: { efficacy: Efficacy | null
           being scored on the only history the page has, so there is no out-of-sample check behind
           any of it. The windows overlap heavily and the eleven sectors are correlated with each
           other, so the observation counts are far larger than the number of independent
-          observations behind them — a twenty-six week horizon over seven years is roughly fourteen
-          genuinely separate periods. No significance test is shown because none of these would
+          observations behind them — a twenty-six week horizon over{" "}
+          {Math.round(efficacy.observations / 52)} years is roughly{" "}
+          {Math.round(efficacy.observations / 26)} genuinely separate periods. No significance test is shown because none of these would
           survive one.
         </p>
         <p>

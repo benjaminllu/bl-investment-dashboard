@@ -98,7 +98,8 @@ function SortHeader({
     // aria-sort belongs on the `th`, which carries the implicit columnheader
     // role the attribute is defined for — a button inside it does not.
     <th
-      className={`px-2 py-1.5 text-right font-medium ${width ?? ""}`}
+      // nowrap: the sort arrow is appended to the label and must not push it onto a second line.
+      className={`whitespace-nowrap px-2 py-1.5 text-right font-medium ${width ?? ""}`}
       aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
       title={title}
     >
@@ -201,7 +202,7 @@ export default function MomentumRanks({ rows }: { rows: MomentumRow[] }) {
           <thead>
             <tr className="bg-muted text-xs text-muted-foreground">
               <SortHeader sortKey="rank" sort={sort} onSort={handleSort} width="w-10">#</SortHeader>
-              <SortHeader sortKey="delta" sort={sort} onSort={handleSort} width="w-12" title="Change in rank over the last month">
+              <SortHeader sortKey="delta" sort={sort} onSort={handleSort} width="w-16" title="Change in rank over the last month">
                 Δ1M
               </SortHeader>
               <th className="px-2 py-1.5 text-left font-medium">Sector</th>
