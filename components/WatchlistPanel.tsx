@@ -12,7 +12,7 @@ import {
 import TickerChart from "./TickerChart";
 import EarningsPanel, { type EarningsRow } from "./EarningsPanel";
 import { CHART_PRESETS } from "@/lib/chartPresets";
-import { LIST_ORDER } from "@/data/watchlistOrder";
+import { watchlistTabs } from "@/data/watchlistOrder";
 import { ChevronIcon, useScrollAffordance } from "./ScrollAffordance";
 
 interface Props {
@@ -42,19 +42,7 @@ export default function WatchlistPanel({
   earningsUnavailable,
   researchFeed,
 }: Props) {
-  const lists = [
-    "All",
-    ...Array.from(
-      new Set(stocks.map((s) => s.list).filter((l): l is string => Boolean(l)))
-    ).sort((a, b) => {
-      const ai = LIST_ORDER.indexOf(a);
-      const bi = LIST_ORDER.indexOf(b);
-      if (ai === -1 && bi === -1) return a.localeCompare(b);
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    }),
-  ];
+  const lists = watchlistTabs(stocks);
 
   const {
     ref: tabsRef,

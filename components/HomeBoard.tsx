@@ -16,7 +16,7 @@ import {
   useCanEditWatchlist,
 } from "@/components/WatchlistEditing";
 
-import { LIST_ORDER } from "@/data/watchlistOrder";
+import { watchlistTabs } from "@/data/watchlistOrder";
 import type { MarketDigest } from "@/lib/marketDigest";
 import type { SubstackArticle } from "@/lib/substack";
 import type { NewsItem } from "@/lib/finnhubNews";
@@ -62,22 +62,7 @@ export default function HomeBoard({
   watchlistNews,
   marketNews,
 }: Props) {
-  const lists = useMemo(
-    () => [
-      "All",
-      ...Array.from(new Set(stocks.map((s) => s.list).filter((l): l is string => Boolean(l)))).sort(
-        (a, b) => {
-          const ai = LIST_ORDER.indexOf(a);
-          const bi = LIST_ORDER.indexOf(b);
-          if (ai === -1 && bi === -1) return a.localeCompare(b);
-          if (ai === -1) return 1;
-          if (bi === -1) return -1;
-          return ai - bi;
-        }
-      ),
-    ],
-    [stocks]
-  );
+  const lists = useMemo(() => watchlistTabs(stocks), [stocks]);
 
   const [activeList, setActiveList] = useState("All");
   const [selected, setSelected] = useState<string | null>(stocks[0]?.ticker ?? null);
